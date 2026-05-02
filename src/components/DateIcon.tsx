@@ -23,6 +23,7 @@ function DateIcon({date}: DateIconProps) {
         <View style={[styles.br2, styles.alignItemsCenter, styles.justifyContentCenter, styles.dateIconSize, StyleUtils.getBackgroundColorStyle(theme.border)]}>
             <Text style={[styles.textMicro, styles.textSupporting]}>{monthAbbr}</Text>
             <Text style={[styles.textStrong, styles.fontSizeNormal, styles.textSupporting]}>{dayNumber}</Text>
+{/* Testing my sshkeys             */}
         </View>
     );
 }
