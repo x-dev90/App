@@ -45,6 +45,7 @@ import DeferredChatBubbleCell from './DataCells/DeferredChatBubbleCell';
 import MerchantOrDescriptionCell from './DataCells/MerchantCell';
 import ReceiptCell from './DataCells/ReceiptCell';
 import TagCell from './DataCells/TagCell';
+import TagGLCodeCell from './DataCells/TagGLCodeCell';
 import TaxCell from './DataCells/TaxCell';
 import TotalCell from './DataCells/TotalCell';
 import TypeCell from './DataCells/TypeCell';
@@ -170,6 +171,20 @@ function TransactionItemRowWide({
                             shouldUseNarrowLayout={false}
                             canEdit={canEditTag}
                             onSave={onEditTag}
+                            policyID={effectivePolicyID}
+                        />
+                    </View>
+                );
+            case CONST.SEARCH.TABLE_COLUMNS.TAG_GL_CODE:
+                return (
+                    <View
+                        key={column}
+                        style={[StyleUtils.getReportTableColumnStyles(CONST.SEARCH.TABLE_COLUMNS.TAG_GL_CODE)]}
+                    >
+                        <TagGLCodeCell
+                            transactionItem={transactionItem}
+                            shouldShowTooltip={shouldShowTooltip}
+                            shouldUseNarrowLayout={false}
                             policyID={effectivePolicyID}
                         />
                     </View>

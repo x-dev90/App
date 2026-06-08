@@ -392,6 +392,7 @@ const nonSortableColumns = new Set<SearchColumnType>([
     CONST.SEARCH.TABLE_COLUMNS.TYPE,
     CONST.SEARCH.TABLE_COLUMNS.EXPORTED_TO,
     CONST.SEARCH.TABLE_COLUMNS.ACTION,
+    CONST.SEARCH.TABLE_COLUMNS.TAG_GL_CODE,
     CONST.SEARCH.TABLE_COLUMNS.IN,
     CONST.SEARCH.TABLE_COLUMNS.AVATAR,
 ]);
@@ -4231,6 +4232,8 @@ function getSearchColumnTranslationKey(column: SearchColumnType): TranslationPat
             return 'common.receipt';
         case CONST.SEARCH.TABLE_COLUMNS.TAG:
             return 'common.tag';
+        case CONST.SEARCH.TABLE_COLUMNS.TAG_GL_CODE:
+            return 'common.tagGL';
         case CONST.SEARCH.TABLE_COLUMNS.ORIGINAL_AMOUNT:
             return 'common.originalAmount';
         case CONST.SEARCH.TABLE_COLUMNS.REIMBURSABLE:
@@ -5437,6 +5440,7 @@ function getColumnsToShow({
               [CONST.SEARCH.TABLE_COLUMNS.DESCRIPTION]: false,
               [CONST.SEARCH.TABLE_COLUMNS.CATEGORY]: false,
               [CONST.SEARCH.TABLE_COLUMNS.TAG]: false,
+              [CONST.SEARCH.TABLE_COLUMNS.TAG_GL_CODE]: false,
               [CONST.SEARCH.TABLE_COLUMNS.CARD]: false,
               [CONST.SEARCH.TABLE_COLUMNS.TAX_RATE]: false,
               [CONST.SEARCH.TABLE_COLUMNS.TAX_AMOUNT]: false,
@@ -5465,6 +5469,7 @@ function getColumnsToShow({
               [CONST.SEARCH.TABLE_COLUMNS.CARD]: false,
               [CONST.SEARCH.TABLE_COLUMNS.CATEGORY]: false,
               [CONST.SEARCH.TABLE_COLUMNS.TAG]: false,
+              [CONST.SEARCH.TABLE_COLUMNS.TAG_GL_CODE]: false,
               [CONST.SEARCH.TABLE_COLUMNS.REIMBURSABLE]: false,
               [CONST.SEARCH.TABLE_COLUMNS.BILLABLE]: false,
               [CONST.SEARCH.TABLE_COLUMNS.TAX_RATE]: false,
@@ -5685,6 +5690,7 @@ function getColumnsToShow({
             // columns map, so we don't need to list it here as non-data for either surface.
             CONST.SEARCH.TABLE_COLUMNS.TOTAL,
             CONST.SEARCH.TABLE_COLUMNS.COMMENTS,
+            CONST.SEARCH.TABLE_COLUMNS.TAG_GL_CODE,
             CONST.SEARCH.TABLE_COLUMNS.REIMBURSABLE,
             CONST.SEARCH.TABLE_COLUMNS.BILLABLE,
             CONST.SEARCH.TABLE_COLUMNS.BASE_62_REPORT_ID,
@@ -5953,6 +5959,7 @@ const FLEX_COLUMNS = new Set<string>([
     CONST.SEARCH.TABLE_COLUMNS.DESCRIPTION,
     CONST.SEARCH.TABLE_COLUMNS.CATEGORY,
     CONST.SEARCH.TABLE_COLUMNS.TAG,
+    CONST.SEARCH.TABLE_COLUMNS.TAG_GL_CODE,
     CONST.SEARCH.TABLE_COLUMNS.TAX_RATE,
     CONST.SEARCH.TABLE_COLUMNS.CARD,
     CONST.SEARCH.TABLE_COLUMNS.EXCHANGE_RATE,

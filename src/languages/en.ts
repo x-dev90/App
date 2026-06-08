@@ -333,6 +333,7 @@ const translations = {
         billable: 'Billable',
         nonBillable: 'Non-billable',
         tag: 'Tag',
+        tagGL: 'Tag GL',
         receipt: 'Receipt',
         verified: 'Verified',
         replace: 'Replace',
