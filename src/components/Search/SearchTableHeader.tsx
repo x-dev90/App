@@ -101,6 +101,11 @@ const getExpenseHeaders = (groupBy?: SearchGroupBy): SearchColumnConfig[] => [
         canEdit: true,
     },
     {
+        columnName: CONST.SEARCH.TABLE_COLUMNS.TAG_GL_CODE,
+        translationKey: 'common.tagGL',
+        isColumnSortable: false,
+    },
+    {
         columnName: CONST.SEARCH.TABLE_COLUMNS.REIMBURSABLE,
         translationKey: 'common.reimbursable',
     },

@@ -1025,6 +1025,15 @@ function getCommaSeparatedTagNameWithSanitizedColons(tag: string): string {
         .join(', ');
 }
 
+function getTagGLCodeForDisplay(transaction: OnyxEntry<Transaction>, policyTagList: OnyxEntry<PolicyTagLists>): string {
+    const tagLists = getTagLists(policyTagList);
+
+    return getTagArrayFromName(getTag(transaction))
+        .map((tagName, index) => tagLists.at(index)?.tags?.[tagName]?.['GL Code'] ?? '')
+        .filter((tagGLCode) => tagGLCode !== '')
+        .join(', ');
+}
+
 function getLengthOfTag(tag: string): number {
     if (!tag) {
         return 0;
@@ -2429,6 +2438,7 @@ export {
     getAdminEmployees,
     getCleanedTagName,
     getCommaSeparatedTagNameWithSanitizedColons,
+    getTagGLCodeForDisplay,
     getConnectedIntegration,
     getConnectedIntegrationNamesForPolicies,
     getConnectionExporters,

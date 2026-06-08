@@ -274,6 +274,7 @@ const translations: TranslationDeepObject<typeof en> = {
         billable: 'Facturable',
         nonBillable: 'No facturable',
         tag: 'Etiqueta',
+        tagGL: 'GL de etiqueta',
         receipt: 'Recibo',
         verified: 'Verificado',
         replace: 'Sustituir',
