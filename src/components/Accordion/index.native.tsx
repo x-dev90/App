@@ -15,7 +15,7 @@ type AccordionProps = {
 
     /** Duration of expansion animation  */
     duration?: number;
-
+//test 
     /** Additional external style */
     style?: StyleProp<ViewStyle>;
 
