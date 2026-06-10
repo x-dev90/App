@@ -132,7 +132,7 @@ function AnimatedCollapsible({
             opacity: animatedOpacity.get(),
         };
     });
-
+// test
     return (
         <View style={style}>
             <View style={[headerStyle, styles.flexRow, styles.alignItemsCenter]}>
