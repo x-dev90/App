@@ -9,7 +9,7 @@ import useThemeStyles from '@hooks/useThemeStyles';
 type AccordionProps = {
     /** Giving information whether the component is open */
     isExpanded: SharedValue<boolean>;
-
+    //test
     /** Element that is inside Accordion */
     children: ReactNode;
 
