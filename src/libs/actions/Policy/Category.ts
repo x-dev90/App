@@ -1295,6 +1295,58 @@ function setWorkspaceRequiresCategory(policyData: PolicyData, requiresCategory: 
     API.write(WRITE_COMMANDS.SET_WORKSPACE_REQUIRES_CATEGORY, parameters, onyxData);
 }
 
+function setWorkspaceShowGLCodesInCategorySelector(policyData: PolicyData, shouldShowGLCodesInCategorySelector: boolean) {
+    const policyID = policyData.policy?.id;
+    const policyOptimisticData: Partial<Policy> = {
+        shouldShowGLCodesInCategorySelector,
+        errors: {
+            shouldShowGLCodesInCategorySelector: null,
+        },
+        pendingFields: {
+            shouldShowGLCodesInCategorySelector: CONST.RED_BRICK_ROAD_PENDING_ACTION.UPDATE,
+        },
+    };
+
+    const onyxData: OnyxData<typeof ONYXKEYS.COLLECTION.POLICY> = {
+        optimisticData: [
+            {
+                onyxMethod: Onyx.METHOD.MERGE,
+                key: `${ONYXKEYS.COLLECTION.POLICY}${policyID}`,
+                value: policyOptimisticData,
+            },
+        ],
+        successData: [
+            {
+                onyxMethod: Onyx.METHOD.MERGE,
+                key: `${ONYXKEYS.COLLECTION.POLICY}${policyID}`,
+                value: {
+                    errors: {
+                        shouldShowGLCodesInCategorySelector: null,
+                    },
+                    pendingFields: {
+                        shouldShowGLCodesInCategorySelector: null,
+                    },
+                },
+            },
+        ],
+        failureData: [
+            {
+                onyxMethod: Onyx.METHOD.MERGE,
+                key: `${ONYXKEYS.COLLECTION.POLICY}${policyID}`,
+                value: {
+                    shouldShowGLCodesInCategorySelector: !shouldShowGLCodesInCategorySelector,
+                    errors: ErrorUtils.getMicroSecondOnyxErrorWithTranslationKey('workspace.categories.updateFailureMessage'),
+                    pendingFields: {
+                        shouldShowGLCodesInCategorySelector: null,
+                    },
+                },
+            },
+        ],
+    };
+
+    API.write(WRITE_COMMANDS.SET_WORKSPACE_SHOW_GL_CODES_IN_CATEGORY_SELECTOR, {policyID, shouldShowGLCodesInCategorySelector}, onyxData);
+}
+
 function clearCategoryErrors(policyID: string, categoryName: string, policyCategories: PolicyCategories = {}) {
     const category = policyCategories?.[categoryName];
 
@@ -1915,4 +1967,5 @@ export {
     setWorkspaceCategoryDescriptionHint,
     setWorkspaceCategoryEnabled,
     setWorkspaceRequiresCategory,
+    setWorkspaceShowGLCodesInCategorySelector,
 };

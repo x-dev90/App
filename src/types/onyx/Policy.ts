@@ -2391,6 +2391,9 @@ type Policy = OnyxCommon.OnyxValueWithOfflineFeedback<
         /** Whether GL codes are enabled */
         glCodes?: boolean;
 
+        /** Whether GL codes should be shown in the category selector */
+        shouldShowGLCodesInCategorySelector?: boolean;
+
         /** Is the auto-pay option for the policy enabled  */
         shouldShowAutoReimbursementLimitOption?: boolean;
 
