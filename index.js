@@ -20,5 +20,7 @@ if (!process.env.EXPO_OS && __DEV__) {
     };
 }
 
+// testing
+
 AppRegistry.registerComponent(Config.APP_NAME, () => App);
 additionalAppSetup();
