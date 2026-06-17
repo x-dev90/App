@@ -147,6 +147,7 @@ function WorkspaceCompanyCardsTable({
     const shouldUseNarrowTableLayout = shouldUseNarrowLayout || isMediumScreenWidth;
 
     const tableRef = useRef<TableHandle<WorkspaceCompanyCardTableItemData, CompanyCardsTableColumnKey>>(null);
+    const [selectedCardKeys, setSelectedCardKeys] = useState<string[]>([]);
 
     const columns: Array<TableColumn<CompanyCardsTableColumnKey>> = [
         {
@@ -306,6 +307,18 @@ function WorkspaceCompanyCardsTable({
     const isNarrowLayoutRef = useRef(shouldUseNarrowTableLayout);
     const [activeSortingInWideLayout, setActiveSortingInWideLayout] = useState<ActiveSorting<CompanyCardsTableColumnKey> | undefined>(undefined);
 
+    useEffect(() => {
+        setSelectedCardKeys((currentSelectedCardKeys) => currentSelectedCardKeys.filter((key) => cardsData.some((card) => card.keyForList === key)));
+    }, [cardsData]);
+
+    useEffect(() => {
+        if (showTableControls) {
+            return;
+        }
+
+        setSelectedCardKeys([]);
+    }, [showTableControls]);
+
     // When we switch from wide to narrow layout, we want to save the active sorting and set it to the member column.
     // When switching back to wide layout, we want to restore the previous sorting.
     useEffect(() => {
@@ -344,6 +357,8 @@ function WorkspaceCompanyCardsTable({
                 showTableControls={showTableControls}
                 canWriteCompanyCards={canWriteCompanyCards}
                 CardFeedIcon={cardFeedIcon}
+                domainOrWorkspaceAccountID={domainOrWorkspaceAccountID}
+                bankName={bankName}
             />
         </View>
     ) : undefined;
@@ -381,6 +396,9 @@ function WorkspaceCompanyCardsTable({
             isItemInSearch={isItemInSearch}
             isItemInFilter={isItemInFilter}
             initialSortColumn="member"
+            selectionEnabled={showTableControls}
+            selectedKeys={selectedCardKeys}
+            onRowSelectionChange={setSelectedCardKeys}
             title={translate('workspace.common.companyCards')}
             ListHeaderComponent={shouldUseNarrowTableLayout ? ListHeader : undefined}
             ListEmptyComponent={isLoadingCards ? LoadingComponent : <WorkspaceCompanyCardsFeedAddedEmptyPage shouldShowGBDisclaimer={shouldShowGBDisclaimer} />}

@@ -2,11 +2,12 @@ import {Str} from 'expensify-common';
 import React from 'react';
 import {View} from 'react-native';
 import AccountSwitcherSkeletonView from '@components/AccountSwitcherSkeletonView';
-import ButtonWithDropdownMenu from '@components/ButtonWithDropdownMenu';
+import Button from '@components/Button';
 import FeedSelector from '@components/FeedSelector';
 import Icon from '@components/Icon';
 import RenderHTML from '@components/RenderHTML';
-import Table from '@components/Table';
+import SearchBar from '@components/SearchBar';
+import {useTableContext} from '@components/Table/TableContext';
 import useCardFeedErrors from '@hooks/useCardFeedErrors';
 import useCardFeeds from '@hooks/useCardFeeds';
 import {useCurrencyListState} from '@hooks/useCurrencyList';
@@ -25,7 +26,10 @@ import {setAddNewCompanyCardStepAndData, setAssignCardStepAndData} from '@userAc
 import CONST from '@src/CONST';
 import ONYXKEYS from '@src/ONYXKEYS';
 import ROUTES from '@src/ROUTES';
-import type {CompanyCardFeedWithDomainID} from '@src/types/onyx';
+import type {CompanyCardFeedWithDomainID, CompanyCardFeedWithNumber} from '@src/types/onyx/CardFeeds';
+import WorkspaceCompanyCardsBulkActions from './WorkspaceCompanyCardsBulkActions';
+import WorkspaceCompanyCardsDisplayButton from './WorkspaceCompanyCardsDisplayButton';
+import WorkspaceCompanyCardsFilterButton from './WorkspaceCompanyCardsFilterButton';
 
 const FEED_SELECTOR_SKELETON_WIDTH = 289;
 
@@ -47,9 +51,22 @@ type WorkspaceCompanyCardsTableHeaderButtonsProps = {
 
     /** Card feed icon */
     CardFeedIcon: React.ReactNode;
+
+    domainOrWorkspaceAccountID: number;
+
+    bankName?: CompanyCardFeedWithNumber;
 };
 
-function WorkspaceCompanyCardsTableHeaderButtons({policyID, feedName, isLoading, showTableControls, canWriteCompanyCards, CardFeedIcon}: WorkspaceCompanyCardsTableHeaderButtonsProps) {
+function WorkspaceCompanyCardsTableHeaderButtons({
+    policyID,
+    feedName,
+    isLoading,
+    showTableControls,
+    canWriteCompanyCards,
+    CardFeedIcon,
+    domainOrWorkspaceAccountID,
+    bankName,
+}: WorkspaceCompanyCardsTableHeaderButtonsProps) {
     const styles = useThemeStyles();
 
     const {shouldUseNarrowLayout, isMediumScreenWidth} = useResponsiveLayout();
@@ -57,6 +74,11 @@ function WorkspaceCompanyCardsTableHeaderButtons({policyID, feedName, isLoading,
     const {currencyList} = useCurrencyListState();
     const theme = useTheme();
     const icons = useMemoizedLazyExpensifyIcons(['Gear', 'DotIndicator']);
+    const {
+        activeSearchString,
+        tableMethods: {updateSearchString},
+        processedData,
+    } = useTableContext();
 
     const [cardFeeds] = useCardFeeds(policyID);
     const policy = usePolicy(policyID);
@@ -101,15 +123,6 @@ function WorkspaceCompanyCardsTableHeaderButtons({policyID, feedName, isLoading,
         });
     };
 
-    const secondaryActions = [
-        {
-            icon: icons.Gear,
-            text: translate('common.settings'),
-            onSelected: () => Navigation.navigate(ROUTES.WORKSPACE_COMPANY_CARDS_SETTINGS.getRoute(policyID ?? String(CONST.DEFAULT_NUMBER_ID))),
-            value: CONST.POLICY.SECONDARY_ACTIONS.SETTINGS,
-        },
-    ];
-
     const isCsvFeed = feedName?.includes(CONST.COMPANY_CARD.FEED_BANK_NAME.CSV);
     const firstPart = translate(isCommercialFeed ? 'workspace.companyCards.commercialFeed' : 'workspace.companyCards.directFeed');
     const domainName = domain?.email ? Str.extractEmailDomain(domain.email) : undefined;
@@ -118,6 +131,7 @@ function WorkspaceCompanyCardsTableHeaderButtons({policyID, feedName, isLoading,
     const supportingText = isCsvFeed ? translate('cardPage.csvCardDescription') : `${firstPart}${secondPart}`;
 
     const shouldShowNarrowLayout = shouldUseNarrowLayout || isMediumScreenWidth;
+    const hasSelection = processedData.some((row) => row.selected);
 
     const skeletonReasonAttributes: SkeletonSpanReasonAttributes = {
         context: 'WorkspaceCompanyCardsTableHeaderButtons',
@@ -126,65 +140,126 @@ function WorkspaceCompanyCardsTableHeaderButtons({policyID, feedName, isLoading,
 
     return (
         <View>
-            <View
-                style={[
-                    styles.w100,
-                    styles.ph5,
-                    styles.gap5,
-                    styles.pb2,
-                    !shouldShowNarrowLayout && [styles.flexColumn, styles.pv2, styles.flexRow, styles.alignItemsCenter, styles.justifyContentBetween],
-                ]}
-            >
-                {isLoading ? (
-                    <AccountSwitcherSkeletonView
-                        avatarSize={CONST.AVATAR_SIZE.DEFAULT}
-                        width={FEED_SELECTOR_SKELETON_WIDTH}
-                        style={[shouldShowNarrowLayout ? [styles.mb2, styles.mt2] : [styles.mb11, styles.mt2], styles.mw100]}
-                        reasonAttributes={skeletonReasonAttributes}
-                    />
-                ) : (
-                    <FeedSelector
-                        onFeedSelect={() => Navigation.navigate(ROUTES.WORKSPACE_COMPANY_CARDS_SELECT_FEED.getRoute(policyID ?? String(CONST.DEFAULT_NUMBER_ID)))}
-                        CardFeedIcon={CardFeedIcon}
-                        feedName={formattedFeedName}
-                        supportingText={supportingText}
-                        shouldShowRBR={shouldShowFeedSelectorRBR}
-                    />
-                )}
+            {shouldShowNarrowLayout ? (
+                <View style={[styles.w100, styles.ph5, styles.gap5, styles.pb2]}>
+                    {isLoading ? (
+                        <AccountSwitcherSkeletonView
+                            avatarSize={CONST.AVATAR_SIZE.DEFAULT}
+                            width={FEED_SELECTOR_SKELETON_WIDTH}
+                            style={[styles.mb2, styles.mt2, styles.mw100]}
+                            reasonAttributes={skeletonReasonAttributes}
+                        />
+                    ) : (
+                        <FeedSelector
+                            onFeedSelect={() => Navigation.navigate(ROUTES.WORKSPACE_COMPANY_CARDS_SELECT_FEED.getRoute(policyID ?? String(CONST.DEFAULT_NUMBER_ID)))}
+                            CardFeedIcon={CardFeedIcon}
+                            feedName={formattedFeedName}
+                            supportingText={supportingText}
+                            shouldShowRBR={shouldShowFeedSelectorRBR}
+                        />
+                    )}
 
-                <View
-                    style={[styles.alignItemsCenter, styles.gap3, shouldShowNarrowLayout ? [styles.flexColumnReverse, styles.w100, styles.alignItemsStretch, styles.gap5] : styles.flexRow]}
-                >
-                    {!isLoading && showTableControls && (
-                        <View style={[styles.mnw200]}>
-                            <Table.SearchBar
-                                style={[styles.mh0, styles.mb0]}
-                                label={translate('workspace.companyCards.findCard')}
+                    {canWriteCompanyCards && !isLoading && (
+                        <Button
+                            medium
+                            icon={icons.Gear}
+                            text={translate('common.settings')}
+                            onPress={() => Navigation.navigate(ROUTES.WORKSPACE_COMPANY_CARDS_SETTINGS.getRoute(policyID ?? String(CONST.DEFAULT_NUMBER_ID)))}
+                            style={styles.flex1}
+                            sentryLabel={CONST.SENTRY_LABEL.WORKSPACE.COMPANY_CARDS.MORE_DROPDOWN}
+                        />
+                    )}
+
+                    {!isLoading && showTableControls && hasSelection && (
+                        <View style={styles.alignItemsStart}>
+                            <WorkspaceCompanyCardsBulkActions
+                                policyID={policyID}
+                                domainOrWorkspaceAccountID={domainOrWorkspaceAccountID}
+                                bankName={bankName}
                             />
                         </View>
                     )}
 
-                    <View style={[styles.flexRow, styles.gap3]}>
-                        {!isLoading && (
-                            <>
-                                {showTableControls && <Table.FilterButtons style={shouldShowNarrowLayout && [styles.flex1]} />}
-                                {canWriteCompanyCards && (
-                                    <ButtonWithDropdownMenu
-                                        success={false}
-                                        onPress={() => {}}
-                                        shouldUseOptionIcon
-                                        customText={translate('common.more')}
-                                        options={secondaryActions}
-                                        isSplitButton={false}
-                                        wrapperStyle={shouldShowNarrowLayout ? styles.flex1 : styles.flexGrow0}
-                                        sentryLabel={CONST.SENTRY_LABEL.WORKSPACE.COMPANY_CARDS.MORE_DROPDOWN}
-                                    />
-                                )}
-                            </>
+                    {!isLoading && showTableControls && !hasSelection && (
+                        <View style={[styles.w100, styles.gap3]}>
+                            <View style={styles.w100}>
+                                <SearchBar
+                                    style={[styles.mh0, styles.mb0]}
+                                    label={translate('workspace.companyCards.findCard')}
+                                    inputValue={activeSearchString}
+                                    onChangeText={updateSearchString}
+                                />
+                            </View>
+                            <View style={[styles.flexRow, styles.gap3]}>
+                                <WorkspaceCompanyCardsFilterButton />
+                                <WorkspaceCompanyCardsDisplayButton />
+                            </View>
+                        </View>
+                    )}
+                </View>
+            ) : (
+                <View style={[styles.w100, styles.ph5, styles.pb2, styles.gap5]}>
+                    <View style={[styles.flexRow, styles.alignItemsStart, styles.justifyContentBetween]}>
+                        {isLoading ? (
+                            <AccountSwitcherSkeletonView
+                                avatarSize={CONST.AVATAR_SIZE.DEFAULT}
+                                width={FEED_SELECTOR_SKELETON_WIDTH}
+                                style={[styles.mt2, styles.mw100]}
+                                reasonAttributes={skeletonReasonAttributes}
+                            />
+                        ) : (
+                            <FeedSelector
+                                onFeedSelect={() => Navigation.navigate(ROUTES.WORKSPACE_COMPANY_CARDS_SELECT_FEED.getRoute(policyID ?? String(CONST.DEFAULT_NUMBER_ID)))}
+                                CardFeedIcon={CardFeedIcon}
+                                feedName={formattedFeedName}
+                                supportingText={supportingText}
+                                shouldShowRBR={shouldShowFeedSelectorRBR}
+                            />
+                        )}
+
+                        {canWriteCompanyCards && !isLoading && (
+                            <Button
+                                medium
+                                icon={icons.Gear}
+                                text={translate('common.settings')}
+                                onPress={() => Navigation.navigate(ROUTES.WORKSPACE_COMPANY_CARDS_SETTINGS.getRoute(policyID ?? String(CONST.DEFAULT_NUMBER_ID)))}
+                                style={styles.flexGrow0}
+                                sentryLabel={CONST.SENTRY_LABEL.WORKSPACE.COMPANY_CARDS.MORE_DROPDOWN}
+                            />
                         )}
                     </View>
+
+                    {showTableControls && !isLoading && (
+                        <View style={[styles.flexRow, styles.alignItemsCenter, styles.justifyContentBetween, styles.gap3]}>
+                            {hasSelection ? (
+                                <View style={styles.alignItemsStart}>
+                                    <WorkspaceCompanyCardsBulkActions
+                                        policyID={policyID}
+                                        domainOrWorkspaceAccountID={domainOrWorkspaceAccountID}
+                                        bankName={bankName}
+                                    />
+                                </View>
+                            ) : (
+                                <>
+                                    <View style={[styles.mnw200]}>
+                                        <SearchBar
+                                            style={[styles.mh0, styles.mb0]}
+                                            label={translate('workspace.companyCards.findCard')}
+                                            inputValue={activeSearchString}
+                                            onChangeText={updateSearchString}
+                                        />
+                                    </View>
+
+                                    <View style={[styles.flexRow, styles.gap3]}>
+                                        <WorkspaceCompanyCardsFilterButton />
+                                        <WorkspaceCompanyCardsDisplayButton />
+                                    </View>
+                                </>
+                            )}
+                        </View>
+                    )}
                 </View>
-            </View>
+            )}
             {!isLoading && canWriteCompanyCards && (isFeedConnectionBroken || hasFeedErrors) && (
                 <View style={[styles.flexRow, styles.ph5, styles.alignItemsCenter]}>
                     <Icon

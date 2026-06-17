@@ -5637,6 +5637,9 @@ const translations = {
                 'Expensify Limited is an agent of Plaid Financial Ltd., an authorised payment institution regulated by the Financial Conduct Authority under the Payment Services Regulations 2017 (Firm Reference Number: 804718). Plaid provides you with regulated account information services through Expensify Limited as its agent.',
             assignCardFailedError: 'Card assignment failed.',
             unassignCardFailedError: 'Card unassignment failed.',
+            unassignCards: 'Unassign cards',
+            unassignCardsDescription: 'Unassigning will delete all unsubmitted transactions from the selected cards.',
+            viewTransactions: 'View transactions',
             cardAlreadyAssignedError: 'This card is already assigned to a user in another workspace.',
             importTransactions: {
                 title: 'Import transactions from file',
