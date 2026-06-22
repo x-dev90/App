@@ -12,7 +12,7 @@ import Navigation from '@libs/Navigation/Navigation';
 import {buildNextStepNew, buildOptimisticNextStep} from '@libs/NextStepUtils';
 import {getPersonalDetailsForAccountIDs} from '@libs/OptionsListUtils';
 import {isPaidGroupPolicy, isPolicyAdmin} from '@libs/PolicyUtils';
-import {getAllReportActions, getElsewherePaymentReportActionMessage, getReportActionHtml, getReportActionText, isCreatedAction} from '@libs/ReportActionsUtils';
+import {getAllReportActions, getElsewherePaymentReportActionMessage, getReportActionHtml, getReportActionText, isCreatedAction, isMoneyRequestAction} from '@libs/ReportActionsUtils';
 import {
     buildOptimisticCancelPaymentReportAction,
     buildOptimisticIOUReportAction,
@@ -111,6 +111,32 @@ type PayMoneyRequestFunctionParams = {
     // TODO: delegateAccountID will be made required in PR 12 when all callers pass the value (https://github.com/Expensify/App/issues/66425)
     delegateAccountID?: number | undefined;
 };
+
+const AMOUNT_CHANGED_PAY_ERROR = 'The requested amount has changed';
+
+function getAmountChangedPayErrorCleanupData(reportID: string): Array<OnyxUpdate<typeof ONYXKEYS.COLLECTION.REPORT_ACTIONS>> {
+    const actionsToClear = Object.values(getAllReportActions(reportID)).filter(
+        (action) => isMoneyRequestAction(action) && Object.values(action.errors ?? {}).some((error) => error === AMOUNT_CHANGED_PAY_ERROR),
+    );
+
+    if (actionsToClear.length === 0) {
+        return [];
+    }
+
+    return [
+        {
+            onyxMethod: Onyx.METHOD.MERGE,
+            key: `${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${reportID}`,
+            value: actionsToClear.reduce<Record<string, {errors: null; pendingAction: null}>>((actions, action) => {
+                actions[action.reportActionID] = {
+                    errors: null,
+                    pendingAction: null,
+                };
+                return actions;
+            }, {}),
+        },
+    ];
+}
 
 function mergeAdditionalPayOnyxData<
     T extends {
@@ -387,6 +413,7 @@ function getPayMoneyRequestParams({
                 },
             },
         },
+        ...(iouReport?.reportID ? getAmountChangedPayErrorCleanupData(iouReport.reportID) : []),
     );
 
     onyxData.failureData?.push(
@@ -973,6 +1000,7 @@ function markReportPaymentReceived(
                 },
             },
         },
+        ...getAmountChangedPayErrorCleanupData(iouReport.reportID),
     ];
 
     const failureData: Array<OnyxUpdate<typeof ONYXKEYS.COLLECTION.REPORT | typeof ONYXKEYS.COLLECTION.REPORT_ACTIONS | typeof ONYXKEYS.COLLECTION.NEXT_STEP>> = [

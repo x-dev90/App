@@ -1,5 +1,6 @@
 import type {OnyxKey} from 'react-native-onyx';
 import {SIDE_EFFECT_REQUEST_COMMANDS, WRITE_COMMANDS} from '@libs/API/types';
+import Log from '@libs/Log';
 import * as OnyxUpdates from '@userActions/OnyxUpdates';
 import CONST from '@src/CONST';
 import type {OnyxUpdatesFromServer} from '@src/types/onyx';
@@ -17,8 +18,34 @@ const requestsToIgnoreLastUpdateID = new Set<string>([
     SIDE_EFFECT_REQUEST_COMMANDS.GET_MISSING_ONYX_MESSAGES,
 ]);
 
+const payCommandsToRefreshOnAmountChanged = new Set<string>([WRITE_COMMANDS.PAY_MONEY_REQUEST, WRITE_COMMANDS.PAY_MONEY_REQUEST_WITH_WALLET]);
+const amountChangedMessage = 'The requested amount has changed';
+
+function refreshReportOnPayAmountChanged<TKey extends OnyxKey>(response: Partial<Response<TKey>>, request: OnyxRequest<TKey>) {
+    if (
+        !payCommandsToRefreshOnAmountChanged.has(request.command) ||
+        response.jsonCode !== CONST.JSON_CODE.EXP_ERROR ||
+        response.message !== amountChangedMessage ||
+        typeof request.data?.iouReportID !== 'string'
+    ) {
+        return;
+    }
+
+    const reportID = request.data.iouReportID;
+
+    void import('@userActions/Report')
+        .then(({openReport}) => {
+            openReport({reportID, introSelected: undefined, betas: undefined});
+        })
+        .catch((error) => {
+            Log.hmmm('[SaveResponseInOnyx] Failed to refresh report after amount changed payment error', {reportID, error});
+        });
+}
+
 const SaveResponseInOnyx: Middleware = <TKey extends OnyxKey>(requestResponse: Promise<Response<TKey> | void>, request: OnyxRequest<TKey>) =>
     requestResponse.then((response = {}) => {
+        refreshReportOnPayAmountChanged(response, request);
+
         const onyxUpdates = response?.onyxData ?? [];
 
         // Sometimes we call requests that are successful but they don't have any response or any success/failure/finally data to set. Let's return early since
