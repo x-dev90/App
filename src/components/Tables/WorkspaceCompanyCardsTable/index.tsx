@@ -182,10 +182,11 @@ function WorkspaceCompanyCardsTable({
 
               return {
                   cardName,
-                  keyForList: `${cardName}_${assignedCard?.cardID ?? 'unassigned'}_${encryptedCardNumber}`,
+                  keyForList: assignedCard?.cardID !== undefined ? String(assignedCard.cardID) : encryptedCardNumber,
                   encryptedCardNumber,
                   customCardName: assignedCard?.cardID && customCardNames?.[assignedCard.cardID] ? customCardNames?.[assignedCard.cardID] : getDefaultCardName(cardholder?.displayName ?? ''),
                   isCardDeleted: assignedCard?.pendingAction === CONST.RED_BRICK_ROAD_PENDING_ACTION.DELETE,
+                  disabled: assignedCard?.pendingAction === CONST.RED_BRICK_ROAD_PENDING_ACTION.DELETE,
                   isAssigned,
                   assignedCard,
                   cardholder,
@@ -195,7 +196,7 @@ function WorkspaceCompanyCardsTable({
               };
           });
 
-    const keyExtractor = (item: WorkspaceCompanyCardTableItemData, index: number) => `${item.cardName}_${index}`;
+    const keyExtractor = (item: WorkspaceCompanyCardTableItemData) => item.keyForList;
 
     const compareItems: CompareItemsCallback<WorkspaceCompanyCardTableItemData, CompanyCardsTableColumnKey> = (a, b, activeSorting) => {
         const orderMultiplier = activeSorting.order === 'asc' ? 1 : -1;
@@ -291,7 +292,7 @@ function WorkspaceCompanyCardsTable({
 
     const renderItem = ({item, index}: ListRenderItemInfo<WorkspaceCompanyCardTableItemData>) => (
         <WorkspaceCompanyCardTableItem
-            key={`${item.cardName}_${index}`}
+            key={item.keyForList}
             item={item}
             rowIndex={index}
             policyID={policyID ?? String(CONST.DEFAULT_NUMBER_ID)}
@@ -307,17 +308,8 @@ function WorkspaceCompanyCardsTable({
     const isNarrowLayoutRef = useRef(shouldUseNarrowTableLayout);
     const [activeSortingInWideLayout, setActiveSortingInWideLayout] = useState<ActiveSorting<CompanyCardsTableColumnKey> | undefined>(undefined);
 
-    useEffect(() => {
-        setSelectedCardKeys((currentSelectedCardKeys) => currentSelectedCardKeys.filter((key) => cardsData.some((card) => card.keyForList === key)));
-    }, [cardsData]);
-
-    useEffect(() => {
-        if (showTableControls) {
-            return;
-        }
-
-        setSelectedCardKeys([]);
-    }, [showTableControls]);
+    const validCardKeys = new Set(cardsData.map((card) => card.keyForList));
+    const activeSelectedCardKeys = showTableControls ? selectedCardKeys.filter((key) => validCardKeys.has(key)) : [];
 
     // When we switch from wide to narrow layout, we want to save the active sorting and set it to the member column.
     // When switching back to wide layout, we want to restore the previous sorting.
@@ -397,7 +389,7 @@ function WorkspaceCompanyCardsTable({
             isItemInFilter={isItemInFilter}
             initialSortColumn="member"
             selectionEnabled={showTableControls}
-            selectedKeys={selectedCardKeys}
+            selectedKeys={activeSelectedCardKeys}
             onRowSelectionChange={setSelectedCardKeys}
             title={translate('workspace.common.companyCards')}
             ListHeaderComponent={shouldUseNarrowTableLayout ? ListHeader : undefined}

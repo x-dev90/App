@@ -1,5 +1,8 @@
+import {format, parseISO} from 'date-fns';
 import type {LocalizedTranslate} from '@components/LocaleContextProvider';
 import type {WorkspaceCompanyCardTableItemData} from '@components/Tables/WorkspaceCompanyCardsTable/WorkspaceCompanyCardsTableRow';
+import CONST from '@src/CONST';
+import {maskCardNumber} from './CardUtils';
 import localFileDownload from './localFileDownload';
 
 function escapeCsvField(value: string): string {
@@ -10,16 +13,18 @@ type DownloadCompanyCardsCSVParams = {
     policyID: string;
     cards: WorkspaceCompanyCardTableItemData[];
     translate: LocalizedTranslate;
+    getLocalDateFromDatetime: (datetime?: string) => Date;
+    bankName?: string;
 };
 
-export default function downloadCompanyCardsCSV({policyID, cards, translate}: DownloadCompanyCardsCSVParams) {
+export default function downloadCompanyCardsCSV({policyID, cards, translate, getLocalDateFromDatetime, bankName}: DownloadCompanyCardsCSVParams) {
     if (cards.length === 0) {
         return;
     }
 
     const header = [
         translate('common.email'),
-        translate('common.name'),
+        translate('workspace.expensifyCard.name'),
         translate('workspace.moreFeatures.companyCards.cardNumber'),
         translate('workspace.moreFeatures.companyCards.transactionStartDate'),
         translate('workspace.moreFeatures.companyCards.lastUpdated'),
@@ -30,11 +35,11 @@ export default function downloadCompanyCardsCSV({policyID, cards, translate}: Do
 
     const rows = cards.map((card) =>
         [
-            card.isAssigned ? (card.cardholder?.login ?? '') : translate('workspace.moreFeatures.companyCards.unassignedCards'),
+            card.isAssigned ? (card.cardholder?.login ?? '') : 'unassigned',
             card.isAssigned ? (card.cardholder?.displayName ?? '') : '',
-            card.cardName,
-            card.isAssigned ? (card.assignedCard?.scrapeMinDate ?? '') : '',
-            card.isAssigned ? String(card.assignedCard?.lastScrape ?? '') : '',
+            maskCardNumber(card.cardName, bankName, true),
+            card.isAssigned && card.assignedCard?.scrapeMinDate ? format(parseISO(card.assignedCard.scrapeMinDate), CONST.DATE.FNS_FORMAT_STRING) : '',
+            card.isAssigned && card.assignedCard?.lastScrape ? format(getLocalDateFromDatetime(card.assignedCard.lastScrape), CONST.DATE.FNS_DATE_TIME_FORMAT_STRING) : '',
             card.isAssigned ? translate('common.yes') : translate('common.no'),
         ]
             .map((value) => escapeCsvField(String(value)))

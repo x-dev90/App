@@ -18,7 +18,7 @@ type WorkspaceCompanyCardsBulkActionsProps = {
 };
 
 function WorkspaceCompanyCardsBulkActions({policyID, domainOrWorkspaceAccountID, bankName}: WorkspaceCompanyCardsBulkActionsProps) {
-    const {translate} = useLocalize();
+    const {translate, getLocalDateFromDatetime} = useLocalize();
     const {showConfirmModal} = useConfirmModal();
     const {processedData, tableMethods} = useTableContext<WorkspaceCompanyCardTableItemData>();
     const selectedCards = processedData.filter((card) => card.selected);
@@ -67,7 +67,7 @@ function WorkspaceCompanyCardsBulkActions({policyID, domainOrWorkspaceAccountID,
         {
             value: 'exportCSV',
             text: translate('workspace.expensifyCard.exportAsCSV'),
-            onSelected: () => downloadCompanyCardsCSV({policyID, cards: selectedCards, translate}),
+            onSelected: () => downloadCompanyCardsCSV({policyID, cards: selectedCards, translate, getLocalDateFromDatetime, bankName}),
         },
     ];
 
