@@ -927,6 +927,9 @@ function openPolicyCompanyCardsPage(policyID: string, domainOrWorkspaceAccountID
                   onyxMethod: Onyx.METHOD.MERGE,
                   key: `${ONYXKEYS.COLLECTION.SHARED_NVP_PRIVATE_DOMAIN_MEMBER}${domainOrWorkspaceAccountID}`,
                   value: {
+                      // Persist that the workspace feed list has resolved once so revisits/refetches
+                      // can keep rendering the existing state instead of a first-load skeleton.
+                      hasOnceLoaded: true,
                       isLoading: false,
                   },
               },
@@ -988,6 +991,9 @@ function openPolicyCompanyCardsFeed(domainAccountID: number, policyID: string, f
                 settings: {
                     cardFeedsStatus: {
                         [feed]: {
+                            // Mark the feed as resolved once so subsequent refetches can be treated
+                            // as background updates in the UI.
+                            hasOnceLoaded: true,
                             isLoading: false,
                         },
                     },

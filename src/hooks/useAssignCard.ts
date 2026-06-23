@@ -1,19 +1,10 @@
 import {useRef} from 'react';
 import {importPlaidAccounts} from '@libs/actions/Plaid';
-import {
-    getCompanyCardFeed,
-    getCompanyFeeds,
-    getDefaultCardName,
-    getDomainOrWorkspaceAccountID,
-    getPlaidCountry,
-    getPlaidInstitutionId,
-    isCustomFeed,
-    isSelectedFeedExpired,
-} from '@libs/CardUtils';
+import {getCompanyCardFeed, getCompanyFeeds, getDefaultCardName, getPlaidCountry, getPlaidInstitutionId, isCustomFeed, isSelectedFeedExpired} from '@libs/CardUtils';
 import Navigation from '@libs/Navigation/Navigation';
 import {getPersonalDetailByEmail} from '@libs/PersonalDetailsUtils';
-import {getDomainNameForPolicy, getMemberAccountIDsForWorkspace, isDeletedPolicyEmployee} from '@libs/PolicyUtils';
-import {clearAddNewCardFlow, clearAssignCardStepAndData, openPolicyCompanyCardsPage, setAddNewCompanyCardStepAndData, setAssignCardStepAndData} from '@userActions/CompanyCards';
+import {getDomainNameForPolicy, isDeletedPolicyEmployee} from '@libs/PolicyUtils';
+import {clearAddNewCardFlow, clearAssignCardStepAndData, setAddNewCompanyCardStepAndData, setAssignCardStepAndData} from '@userActions/CompanyCards';
 import CONST from '@src/CONST';
 import ONYXKEYS from '@src/ONYXKEYS';
 import ROUTES from '@src/ROUTES';
@@ -47,18 +38,9 @@ function useAssignCard({feedName, policyID, setShouldShowOfflineModal}: UseAssig
     const {translate} = useLocalize();
 
     const policy = usePolicy(policyID);
-    const workspaceAccountID = policy?.policyAccountID ?? CONST.DEFAULT_NUMBER_ID;
-
-    const companyCards = getCompanyFeeds(cardFeeds);
-    const selectedFeedData = feedName && companyCards[feedName];
-    const domainOrWorkspaceAccountID = getDomainOrWorkspaceAccountID(workspaceAccountID, selectedFeedData);
-
-    const fetchCompanyCards = () => {
-        const emailList = Object.keys(getMemberAccountIDsForWorkspace(policy?.employeeList));
-        openPolicyCompanyCardsPage(policyID, domainOrWorkspaceAccountID, emailList, translate);
-    };
-
-    const {isOffline} = useNetwork({onReconnect: fetchCompanyCards});
+    // This hook only needs offline awareness for the assignment flow itself.
+    // Page/bootstrap fetching stays owned by WorkspaceCompanyCardsPage.
+    const {isOffline} = useNetwork();
 
     const {cardFeedErrors} = useCardFeedErrors();
     const feedErrors = feedName ? cardFeedErrors[feedName] : undefined;

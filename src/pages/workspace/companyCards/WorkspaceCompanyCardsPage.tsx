@@ -59,9 +59,8 @@ function WorkspaceCompanyCardsPage({route}: WorkspaceCompanyCardsPageProps) {
         openPolicyCompanyCardsPage(policyID, domainOrWorkspaceAccountID, emailList, translate);
     }, [domainOrWorkspaceAccountID, policyID, translate]);
 
-    const {isOffline} = useNetwork({
-        onReconnect: loadPolicyCompanyCardsPage,
-    });
+    // Let the page/feed effects react to network recovery so reconnect only has one fetch owner.
+    const {isOffline} = useNetwork();
 
     const isLoading = !isOffline && (!allCardFeeds || (isFeedAdded && isLoadingOnyxValue(cardListMetadata)));
 
