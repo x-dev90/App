@@ -99,15 +99,19 @@ function WorkspaceCompanyCardsTable({
     const [countryByIp] = useOnyx(ONYXKEYS.COUNTRY);
     const [personalDetails, personalDetailsMetadata] = useOnyx(ONYXKEYS.PERSONAL_DETAILS_LIST);
     const [customCardNames] = useOnyx(ONYXKEYS.NVP_EXPENSIFY_COMPANY_CARDS_CUSTOM_NAMES);
+    // This is a durable page-level signal: after the first successful Company Cards load,
+    // later refetches should behave like background refreshes instead of first-load skeletons.
+    const [hasCompanyCardsDataBeenFetched] = useOnyx(`${ONYXKEYS.COLLECTION.POLICY_HAS_COMPANY_CARDS_DATA_BEEN_FETCHED}${policyID}`);
 
     const hasNoAssignedCard = Object.keys(assignedCards ?? {}).length === 0;
 
-    const areWorkspaceCardFeedsLoading = !!workspaceCardFeedsStatus?.[domainOrWorkspaceAccountID]?.isLoading;
+    const workspaceCardFeedsState = workspaceCardFeedsStatus?.[domainOrWorkspaceAccountID];
+    const areWorkspaceCardFeedsLoading = !!workspaceCardFeedsState?.isLoading;
     // Synthesize error locally since Onyx discards writes to collection keys with member ID '0'.
     const shouldShowWorkspaceFeedsLoadError = domainOrWorkspaceAccountID === CONST.DEFAULT_NUMBER_ID && isPolicyLoaded && !isOffline;
     const workspaceCardFeedsErrors = shouldShowWorkspaceFeedsLoadError
         ? {[CONST.COMPANY_CARDS.WORKSPACE_FEEDS_LOAD_ERROR]: translate('workspace.companyCards.error.workspaceFeedsCouldNotBeLoadedMessage')}
-        : workspaceCardFeedsStatus?.[domainOrWorkspaceAccountID]?.errors;
+        : workspaceCardFeedsState?.errors;
 
     const selectedFeedStatus = selectedFeed?.status;
     const selectedFeedErrors = selectedFeedStatus?.errors;
@@ -131,7 +135,8 @@ function WorkspaceCompanyCardsTable({
     const isLoadingFeed =
         !hasCards && ((!feedName && isInitiallyLoadingFeeds) || !isPolicyLoaded || (!isNoFeed && isLoadingOnyxValue(lastSelectedFeedMetadata)) || !!selectedFeedStatus?.isLoading);
     const isLoadingCards = !hasCards ? isLoadingOnyxValue(cardListMetadata) : false;
-    const isLoadingPage = !isOffline && !hasCards && (isLoadingFeed || isLoadingOnyxValue(personalDetailsMetadata) || areWorkspaceCardFeedsLoading);
+    // Only show the full page skeleton while the initial Company Cards page load is unresolved.
+    const isLoadingPage = !isOffline && !hasCards && (isLoadingFeed || isLoadingOnyxValue(personalDetailsMetadata) || (areWorkspaceCardFeedsLoading && !hasCompanyCardsDataBeenFetched));
 
     const isLoading = isLoadingPage || isLoadingFeed;
 

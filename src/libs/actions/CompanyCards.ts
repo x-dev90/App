@@ -919,6 +919,9 @@ function clearCompanyCardErrorField(domainOrWorkspaceAccountID: number, cardID: 
 }
 
 function openPolicyCompanyCardsPage(policyID: string, domainOrWorkspaceAccountID: number, emailList: string[], translate: LocaleContextProps['translate']) {
+    // Keep the "loaded once" signal outside backend-owned feed data so later workspace refreshes
+    // do not wipe the client-side state that suppresses repeat skeletons.
+    const hasCompanyCardsDataBeenFetchedKey = `${ONYXKEYS.COLLECTION.POLICY_HAS_COMPANY_CARDS_DATA_BEEN_FETCHED}${policyID}` as const;
     // Skip loading state writes when domainOrWorkspaceAccountID is 0 since Onyx discards writes to collection keys with member ID '0'.
     const onyxLoadingStateUpdates = domainOrWorkspaceAccountID !== CONST.DEFAULT_NUMBER_ID;
 
@@ -935,17 +938,24 @@ function openPolicyCompanyCardsPage(policyID: string, domainOrWorkspaceAccountID
           ]
         : [];
 
-    const successData: Array<OnyxUpdate<typeof ONYXKEYS.COLLECTION.SHARED_NVP_PRIVATE_DOMAIN_MEMBER>> = onyxLoadingStateUpdates
-        ? [
-              {
-                  onyxMethod: Onyx.METHOD.MERGE,
-                  key: `${ONYXKEYS.COLLECTION.SHARED_NVP_PRIVATE_DOMAIN_MEMBER}${domainOrWorkspaceAccountID}`,
-                  value: {
-                      isLoading: false,
-                  },
-              },
-          ]
-        : [];
+    const successData: Array<OnyxUpdate<typeof ONYXKEYS.COLLECTION.SHARED_NVP_PRIVATE_DOMAIN_MEMBER | typeof hasCompanyCardsDataBeenFetchedKey>> = [
+        ...(onyxLoadingStateUpdates
+            ? [
+                  {
+                      onyxMethod: Onyx.METHOD.MERGE,
+                      key: `${ONYXKEYS.COLLECTION.SHARED_NVP_PRIVATE_DOMAIN_MEMBER}${domainOrWorkspaceAccountID}`,
+                      value: {
+                          isLoading: false,
+                      },
+                  } as const,
+              ]
+            : []),
+        {
+            onyxMethod: Onyx.METHOD.MERGE,
+            key: hasCompanyCardsDataBeenFetchedKey,
+            value: true,
+        },
+    ];
 
     const failureData: Array<OnyxUpdate<typeof ONYXKEYS.COLLECTION.SHARED_NVP_PRIVATE_DOMAIN_MEMBER>> = onyxLoadingStateUpdates
         ? [
