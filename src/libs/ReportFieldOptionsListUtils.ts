@@ -7,13 +7,13 @@ import tokenizedSearch from './tokenizedSearch';
  *
  * @param reportFieldOptions - an initial report field options array
  */
-function getReportFieldOptions(reportFieldOptions: string[], selectedKeys?: Set<string>) {
+function getReportFieldOptions(reportFieldOptions: string[], selectedKeys?: Set<string>, disabledKeys?: Set<string>) {
     return reportFieldOptions.map((name) => ({
         text: name,
         keyForList: name,
         searchText: name,
         tooltipText: name,
-        isDisabled: false,
+        isDisabled: disabledKeys ? disabledKeys.has(name) : false,
         isSelected: selectedKeys ? selectedKeys.has(name) : false,
     }));
 }
@@ -37,6 +37,8 @@ function getReportFieldOptionsSection({
     const reportFieldOptionsSections = [];
     const selectedOptionKeys = selectedOptions.map(({text, keyForList, name}) => text ?? keyForList ?? name ?? '').filter((o) => !!o);
     const selectedKeySet = new Set(selectedOptionKeys);
+    const enabledOptionSet = new Set(options);
+    const disabledSelectedKeySet = new Set(selectedOptionKeys.filter((option) => !enabledOptionSet.has(option)));
 
     if (searchValue) {
         const searchOptions = tokenizedSearch(options, searchValue, (option) => [option]);
@@ -51,7 +53,7 @@ function getReportFieldOptionsSection({
         return reportFieldOptionsSections;
     }
 
-    const filteredRecentlyUsedOptions = recentlyUsedOptions.filter((o) => !selectedKeySet.has(o));
+    const filteredRecentlyUsedOptions = recentlyUsedOptions.filter((o) => !selectedKeySet.has(o) && enabledOptionSet.has(o));
     const filteredOptions = options.filter((o) => !selectedKeySet.has(o));
 
     if (selectedOptionKeys.length) {
@@ -59,7 +61,7 @@ function getReportFieldOptionsSection({
             // "Selected" section
             title: '',
             sectionIndex: 1,
-            data: getReportFieldOptions(selectedOptionKeys, selectedKeySet),
+            data: getReportFieldOptions(selectedOptionKeys, selectedKeySet, disabledSelectedKeySet),
         });
     }
 
