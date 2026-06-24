@@ -941,6 +941,7 @@ function openPolicyCompanyCardsPage(policyID: string, domainOrWorkspaceAccountID
                   onyxMethod: Onyx.METHOD.MERGE,
                   key: `${ONYXKEYS.COLLECTION.SHARED_NVP_PRIVATE_DOMAIN_MEMBER}${domainOrWorkspaceAccountID}`,
                   value: {
+                      hasOnceLoaded: true,
                       isLoading: false,
                   },
               },
@@ -1002,6 +1003,7 @@ function openPolicyCompanyCardsFeed(domainAccountID: number, policyID: string, f
                 settings: {
                     cardFeedsStatus: {
                         [feed]: {
+                            hasOnceLoaded: true,
                             isLoading: false,
                         },
                     },
