@@ -3,7 +3,7 @@ import {useCurrencyListActions} from '@hooks/useCurrencyList';
 import useLocalize from '@hooks/useLocalize';
 import {computePerDiemExpenseAmount} from '@libs/actions/IOU/PerDiem';
 import type {getAttendees} from '@libs/TransactionUtils';
-import {isScanning, isScanRequest as isScanRequestUtil} from '@libs/TransactionUtils';
+import {isFailedScanAmountPlaceholder, isScanning, isScanRequest as isScanRequestUtil} from '@libs/TransactionUtils';
 import type * as OnyxTypes from '@src/types/onyx';
 
 type SubRates = NonNullable<NonNullable<NonNullable<OnyxTypes.Transaction['comment']>['customUnit']>['subRates']>;
@@ -93,6 +93,8 @@ function useConfirmationAmount({
         formattedAmount = '';
     } else if (isScanning(transaction)) {
         formattedAmount = translate('iou.receiptStatusTitle');
+    } else if (isFailedScanAmountPlaceholder(transaction)) {
+        formattedAmount = '';
     }
 
     const attendeeCount = iouAttendees?.length && iouAttendees.length > 0 ? iouAttendees.length : 1;

@@ -20,7 +20,7 @@ import {getParticipantsOption, getReportOption} from '@libs/OptionsListUtils';
 import Permissions from '@libs/Permissions';
 import {getPolicyExpenseChat, getTransactionDetails, isMoneyRequestReport, isSelfDM, shouldEnableNegative} from '@libs/ReportUtils';
 import shouldUseDefaultExpensePolicy from '@libs/shouldUseDefaultExpensePolicy';
-import {calculateTaxAmount, getAmount, getCurrency, getDefaultTaxCode, getIsFromGlobalCreate, getTaxValue, hasReceipt} from '@libs/TransactionUtils';
+import {calculateTaxAmount, getAmount, getCurrency, getDefaultTaxCode, getIsFromGlobalCreate, getTaxValue, hasReceipt, isFailedScanAmountPlaceholder} from '@libs/TransactionUtils';
 import {
     getMoneyRequestParticipantsFromReport,
     setMoneyRequestAmount,
@@ -514,7 +514,12 @@ function submitAmount({
 
     // If the value hasn't changed, don't request to save changes on the server and just close the modal
     const transactionCurrency = getCurrency(currentTransaction);
-    if (newAmount === getAmount(currentTransaction, false, false, allowNegative, disableOppositeConversion) && selectedCurrency === transactionCurrency) {
+    const shouldPersistFailedScanAmount = isFailedScanAmountPlaceholder(currentTransaction);
+    if (
+        newAmount === getAmount(currentTransaction, false, false, allowNegative, disableOppositeConversion) &&
+        selectedCurrency === transactionCurrency &&
+        !shouldPersistFailedScanAmount
+    ) {
         navigateBack();
         return;
     }
