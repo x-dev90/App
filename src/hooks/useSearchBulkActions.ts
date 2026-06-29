@@ -400,10 +400,11 @@ function useSearchBulkActions({queryJSON}: UseSearchBulkActionsParams) {
     > | null>(null);
 
     const [emptyReportsCount, setEmptyReportsCount] = useState<number>(0);
-    const {trackExport, exportDownloadStatusModal} = useExportDownloadStatusModal(() => {
+    const {trackExport, exportDownloadStatusModal} = useExportDownloadStatusModal();
+    const clearSearchSelectionAfterExport = useCallback(() => {
         selectAllMatchingItems(false);
         clearSelectedTransactions(undefined, true);
-    });
+    }, [clearSelectedTransactions, selectAllMatchingItems]);
 
     const [dismissedRejectUseExplanation] = useOnyx(ONYXKEYS.NVP_DISMISSED_REJECT_USE_EXPLANATION);
     const [dismissedHoldUseExplanation] = useOnyx(ONYXKEYS.NVP_DISMISSED_HOLD_USE_EXPLANATION);
@@ -628,9 +629,10 @@ function useSearchBulkActions({queryJSON}: UseSearchBulkActionsParams) {
                     true,
                 );
             }
-            trackExport(exportID);
+            trackExport(exportID, clearSearchSelectionAfterExport);
         },
         [
+            clearSearchSelectionAfterExport,
             selectedReports,
             selectedTransactions,
             isOffline,
@@ -713,7 +715,7 @@ function useSearchBulkActions({queryJSON}: UseSearchBulkActionsParams) {
                     isBasicExport: exportParameters.isBasicExport,
                     exportColumnLabels: exportParameters.exportColumnLabels,
                 });
-                trackExport(exportID);
+                trackExport(exportID, clearSearchSelectionAfterExport);
                 return;
             }
 
@@ -757,6 +759,7 @@ function useSearchBulkActions({queryJSON}: UseSearchBulkActionsParams) {
             hash,
             currentSearchResults?.data,
             getCSVExportParameters,
+            clearSearchSelectionAfterExport,
             trackExport,
         ],
     );
@@ -1854,7 +1857,7 @@ function useSearchBulkActions({queryJSON}: UseSearchBulkActionsParams) {
                         return;
                     }
                     const exportID = exportReportsToPDF(selectedReportIDs);
-                    trackExport(exportID);
+                    trackExport(exportID, clearSearchSelectionAfterExport);
                 },
             });
         }
@@ -2157,6 +2160,7 @@ function useSearchBulkActions({queryJSON}: UseSearchBulkActionsParams) {
         isProduction,
         shouldOpenSplitExpenseEditFlowOnDelete,
         styles.textWrap,
+        clearSearchSelectionAfterExport,
         trackExport,
         allReportsShouldMarkAsDone,
         noReportsShouldMarkAsDone,

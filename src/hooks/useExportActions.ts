@@ -70,7 +70,7 @@ function useExportActions({reportID, policy, onPDFModalOpen}: UseExportActionsPa
     const {showDecisionModal} = useDecisionModal();
     const {triggerExportOrConfirm} = useExportAgainModal(moneyRequestReport?.reportID, moneyRequestReport?.policyID);
     const {clearSelectedTransactions} = useSearchSelectionActions();
-    const {trackExport, exportDownloadStatusModal} = useExportDownloadStatusModal(() => clearSelectedTransactions(undefined, true));
+    const {trackExport, exportDownloadStatusModal} = useExportDownloadStatusModal();
 
     const expensifyIcons = useMemoizedLazyExpensifyIcons([
         'Table',
@@ -125,7 +125,7 @@ function useExportActions({reportID, policy, onPDFModalOpen}: UseExportActionsPa
             },
             true,
         );
-        trackExport(exportID);
+        trackExport(exportID, () => clearSelectedTransactions(true));
     };
 
     const exportSubmenuOptions: Record<string, DropdownOption<string>> = {

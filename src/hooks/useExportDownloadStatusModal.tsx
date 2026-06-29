@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useCallback, useRef, useState} from 'react';
 import ExportDownloadStatusModal from '@components/ExportDownloadStatusModal';
 import {clearExportDownload} from '@libs/actions/Export';
 import CONST from '@src/CONST';
@@ -7,7 +7,7 @@ import useOnyx from './useOnyx';
 
 type UseExportDownloadStatusModalReturn = {
     /** Start tracking a queued export so the status modal renders for it */
-    trackExport: (exportID: string) => void;
+    trackExport: (exportID: string, onCleanup?: () => void) => void;
 
     /** The realtime export status modal for the in-progress export (or null when none is active). Render it directly in the consumer. */
     exportDownloadStatusModal: React.JSX.Element | null;
@@ -17,12 +17,16 @@ type UseExportDownloadStatusModalReturn = {
  * Encapsulates the shared wiring for the queued export status modal (ExportDownloadStatusModal): it tracks the
  * active export, renders the modal, and handles close/cleanup (no-op while still preparing, unless handed off to
  * Concierge). Used by every surface that triggers a tracked template export so the modal wiring lives in one place.
- *
- * @param onCleanup - Optional extra cleanup to run once the modal is dismissed (e.g. clearing the selection).
  */
-function useExportDownloadStatusModal(onCleanup?: () => void): UseExportDownloadStatusModalReturn {
+function useExportDownloadStatusModal(): UseExportDownloadStatusModalReturn {
     const [activeExportID, setActiveExportID] = useState<string | undefined>(undefined);
     const [activeExportDownload] = useOnyx(`${ONYXKEYS.COLLECTION.EXPORT_DOWNLOAD}${activeExportID}`);
+    const cleanupRef = useRef<(() => void) | undefined>(undefined);
+
+    const trackExport = useCallback((exportID: string, onCleanup?: () => void) => {
+        cleanupRef.current = onCleanup;
+        setActiveExportID(exportID);
+    }, []);
 
     const handleExportModalClose = () => {
         // Keep the modal open while the export is still preparing (unless it was handed off to Concierge).
@@ -34,8 +38,10 @@ function useExportDownloadStatusModal(onCleanup?: () => void): UseExportDownload
         if (activeExportID && !activeExportDownload?.shouldSendFromConcierge) {
             clearExportDownload(activeExportID, activeExportDownload);
         }
+        const cleanup = cleanupRef.current;
+        cleanupRef.current = undefined;
         setActiveExportID(undefined);
-        onCleanup?.();
+        cleanup?.();
     };
 
     const exportDownloadStatusModal = activeExportID ? (
@@ -46,7 +52,7 @@ function useExportDownloadStatusModal(onCleanup?: () => void): UseExportDownload
         />
     ) : null;
 
-    return {trackExport: setActiveExportID, exportDownloadStatusModal};
+    return {trackExport, exportDownloadStatusModal};
 }
 
 export default useExportDownloadStatusModal;

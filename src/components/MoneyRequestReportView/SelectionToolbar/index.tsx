@@ -75,7 +75,7 @@ function SelectionToolbar({reportID, transactions, reportActions}: SelectionTool
 
     const isMobileSelectionModeEnabled = useMobileSelectionMode();
     const {showConfirmModal} = useConfirmModal();
-    const {trackExport, exportDownloadStatusModal} = useExportDownloadStatusModal(() => clearSelectedTransactions(undefined, true));
+    const {trackExport, exportDownloadStatusModal} = useExportDownloadStatusModal();
 
     const [offlineModalVisible, setOfflineModalVisible] = useState(false);
     const [isDownloadErrorModalVisible, setIsDownloadErrorModalVisible] = useState(false);
@@ -104,7 +104,7 @@ function SelectionToolbar({reportID, transactions, reportActions}: SelectionTool
             },
             true,
         );
-        trackExport(exportID);
+        trackExport(exportID, () => clearSelectedTransactions(true));
     };
 
     const onDeleteSelected = (handleDeleteTransactions: () => void, handleDeleteTransactionsWithNavigation: (backToRoute?: Route) => void) => {
