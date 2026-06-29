@@ -84,6 +84,7 @@ function WorkspaceCompanyCardsTable({
     const {
         feedName,
         bankName,
+        cardsList,
         assignedCards,
         companyCardEntries,
         workspaceCardFeedsStatus,
@@ -129,11 +130,17 @@ function WorkspaceCompanyCardsTable({
 
     // If we already have fetched cards, then do not show a loading spinner (let the remaining updates refresh in the background), else show it
     const hasCards = (companyCardEntries ?? []).length > 0;
+    const hasResolvedNoFeed = isNoFeed;
+    const hasResolvedFeedCards = !!selectedFeed && !isLoadingOnyxValue(cardListMetadata) && cardsList !== undefined;
+    const hasResolvedCompanyCardsView = hasCards || hasResolvedNoFeed || hasResolvedFeedCards;
+    const shouldShowWorkspaceFeedsLoading = !hasResolvedCompanyCardsView && areWorkspaceCardFeedsLoading;
+    const shouldShowSelectedFeedLoading = !hasResolvedCompanyCardsView && !!selectedFeedStatus?.isLoading;
+
     // When the last feed is removed, card data already implies no feed (isNoFeed); lastSelectedFeed Onyx metadata can still report loading after optimistic clear.
     const isLoadingFeed =
-        !hasCards && ((!feedName && isInitiallyLoadingFeeds) || !isPolicyLoaded || (!isNoFeed && isLoadingOnyxValue(lastSelectedFeedMetadata)) || !!selectedFeedStatus?.isLoading);
+        !hasCards && ((!feedName && isInitiallyLoadingFeeds) || !isPolicyLoaded || (!isNoFeed && isLoadingOnyxValue(lastSelectedFeedMetadata)) || shouldShowSelectedFeedLoading);
     const isLoadingCards = !hasCards && isLoadingOnyxValue(cardListMetadata);
-    const isLoadingPage = !isOffline && !hasCards && (isLoadingFeed || isLoadingOnyxValue(personalDetailsMetadata) || areWorkspaceCardFeedsLoading);
+    const isLoadingPage = !isOffline && !hasCards && (isLoadingFeed || isLoadingOnyxValue(personalDetailsMetadata) || shouldShowWorkspaceFeedsLoading);
 
     const isLoading = isLoadingPage || isLoadingFeed;
 

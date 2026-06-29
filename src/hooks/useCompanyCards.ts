@@ -27,6 +27,7 @@ type UseCompanyCardsProps = {
 type UseCompanyCardsResult = Partial<{
     bankName: CompanyCardFeedWithNumber;
     feedName: CompanyCardFeedWithDomainID;
+    cardsList: WorkspaceCardsList;
     cardList: AssignableCardsList;
     assignedCards: CardList;
     companyCardEntries: CompanyCardEntry[];
@@ -192,6 +193,7 @@ function useCompanyCards({policyID, feedName: feedNameProp}: UseCompanyCardsProp
         allCardFeeds,
         feedName,
         companyCardFeeds,
+        cardsList,
         cardList,
         assignedCards,
         companyCardEntries,
