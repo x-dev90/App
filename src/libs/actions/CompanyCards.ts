@@ -981,7 +981,11 @@ function openPolicyCompanyCardsPage(policyID: string, domainOrWorkspaceAccountID
         emailList: JSON.stringify(emailList),
     };
 
-    API.read(READ_COMMANDS.OPEN_POLICY_COMPANY_CARDS_PAGE, params, {optimisticData, successData, failureData});
+    API.read(READ_COMMANDS.OPEN_POLICY_COMPANY_CARDS_PAGE, params, {
+        optimisticData,
+        successData,
+        failureData,
+    });
 }
 
 function openPolicyCompanyCardsFeed(domainAccountID: number, policyID: string, feed: CompanyCardFeedWithNumber, translate: LocaleContextProps['translate']) {

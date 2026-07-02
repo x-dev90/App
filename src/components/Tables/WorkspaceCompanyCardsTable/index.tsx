@@ -35,6 +35,10 @@ import type {WorkspaceCompanyCardTableItemData} from './WorkspaceCompanyCardsTab
 
 type CompanyCardsTableColumnKey = 'member' | 'card' | 'customCardName' | 'actions';
 
+// Session-scoped cache so returning to the page does not re-show the full skeleton once
+// the workspace company cards data has already resolved successfully.
+const workspaceCompanyCardsFetchedPolicies = new Set<string>();
+
 type WorkspaceCompanyCardsTableProps = {
     /** Policy ID */
     policyID: string;
@@ -105,6 +109,7 @@ function WorkspaceCompanyCardsTable({
 
     const hasNoAssignedCard = Object.keys(assignedCards ?? {}).length === 0;
     const areWorkspaceCardFeedsLoading = !!workspaceCardFeedsStatus?.[domainOrWorkspaceAccountID]?.isLoading;
+    const hasCompanyCardsDataBeenFetched = workspaceCompanyCardsFetchedPolicies.has(policyID);
 
     // Synthesize error locally since Onyx discards writes to collection keys with member ID '0'.
     const shouldShowWorkspaceFeedsLoadError = domainOrWorkspaceAccountID === CONST.DEFAULT_NUMBER_ID && isPolicyLoaded && !isOffline;
@@ -135,7 +140,15 @@ function WorkspaceCompanyCardsTable({
     const isLoadingFeed =
         !hasCards && ((!feedName && isInitiallyLoadingFeeds) || !isPolicyLoaded || (!isNoFeed && isLoadingOnyxValue(lastSelectedFeedMetadata)) || !!selectedFeedStatus?.isLoading);
     const isLoadingCards = !hasCards && isLoadingOnyxValue(cardListMetadata);
-    const isLoadingPage = !isOffline && !hasCards && (isLoadingFeed || isLoadingOnyxValue(personalDetailsMetadata) || areWorkspaceCardFeedsLoading);
+    const isLoadingPage = !isOffline && !hasCards && (isLoadingFeed || isLoadingOnyxValue(personalDetailsMetadata) || (areWorkspaceCardFeedsLoading && !hasCompanyCardsDataBeenFetched));
+
+    useEffect(() => {
+        if (isLoadingPage || hasFeedErrors) {
+            return;
+        }
+
+        workspaceCompanyCardsFetchedPolicies.add(policyID);
+    }, [hasFeedErrors, isLoadingPage, policyID]);
 
     const isLoading = isLoadingPage || isLoadingFeed;
 
