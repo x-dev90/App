@@ -20,6 +20,7 @@ import useResponsiveLayout from '@hooks/useResponsiveLayout';
 import useTheme from '@hooks/useTheme';
 import useThemeStyles from '@hooks/useThemeStyles';
 import {resetFailedWorkspaceCompanyCardUnassignment} from '@libs/actions/CompanyCards';
+import {hasFetchedCompanyCards, markCompanyCardsAsFetched} from '@libs/CompanyCardsFetchedOnceCache';
 import {getCompanyCardCustomName, getDefaultCardName} from '@libs/CardUtils';
 import tokenizedSearch from '@libs/tokenizedSearch';
 import WorkspaceCompanyCardPageEmptyState from '@pages/workspace/companyCards/WorkspaceCompanyCardPageEmptyState';
@@ -34,10 +35,6 @@ import WorkspaceCompanyCardTableItem from './WorkspaceCompanyCardsTableRow';
 import type {WorkspaceCompanyCardTableItemData} from './WorkspaceCompanyCardsTableRow';
 
 type CompanyCardsTableColumnKey = 'member' | 'card' | 'customCardName' | 'actions';
-
-// Session-scoped cache so returning to the page does not re-show the full skeleton once
-// the workspace company cards data has already resolved successfully.
-const workspaceCompanyCardsFetchedPolicies = new Set<string>();
 
 type WorkspaceCompanyCardsTableProps = {
     /** Policy ID */
@@ -85,6 +82,8 @@ function WorkspaceCompanyCardsTable({
     const {translate, localeCompare} = useLocalize();
     const {shouldUseNarrowLayout, isMediumScreenWidth} = useResponsiveLayout();
     const tableRef = useRef<TableHandle<WorkspaceCompanyCardTableItemData, CompanyCardsTableColumnKey>>(null);
+    const [session] = useOnyx(ONYXKEYS.SESSION);
+    const sessionCreationDate = session?.creationDate;
 
     const {
         feedName,
@@ -109,7 +108,7 @@ function WorkspaceCompanyCardsTable({
 
     const hasNoAssignedCard = Object.keys(assignedCards ?? {}).length === 0;
     const areWorkspaceCardFeedsLoading = !!workspaceCardFeedsStatus?.[domainOrWorkspaceAccountID]?.isLoading;
-    const hasCompanyCardsDataBeenFetched = workspaceCompanyCardsFetchedPolicies.has(policyID);
+    const hasCompanyCardsDataBeenFetched = hasFetchedCompanyCards(sessionCreationDate, policyID);
 
     // Synthesize error locally since Onyx discards writes to collection keys with member ID '0'.
     const shouldShowWorkspaceFeedsLoadError = domainOrWorkspaceAccountID === CONST.DEFAULT_NUMBER_ID && isPolicyLoaded && !isOffline;
@@ -147,8 +146,8 @@ function WorkspaceCompanyCardsTable({
             return;
         }
 
-        workspaceCompanyCardsFetchedPolicies.add(policyID);
-    }, [hasFeedErrors, isLoadingPage, policyID]);
+        markCompanyCardsAsFetched(sessionCreationDate, policyID);
+    }, [hasFeedErrors, isLoadingPage, policyID, sessionCreationDate]);
 
     const isLoading = isLoadingPage || isLoadingFeed;
 
