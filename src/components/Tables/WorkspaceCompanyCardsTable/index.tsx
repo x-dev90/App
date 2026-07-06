@@ -142,7 +142,7 @@ function WorkspaceCompanyCardsTable({
     const isLoadingPage = !isOffline && !hasCards && (isLoadingFeed || isLoadingOnyxValue(personalDetailsMetadata) || (areWorkspaceCardFeedsLoading && !hasCompanyCardsDataBeenFetched));
 
     useEffect(() => {
-        if (isLoadingPage || hasFeedErrors) {
+        if (isLoadingPage || hasFeedErrors || hasFetchedCompanyCards(sessionCreationDate, policyID)) {
             return;
         }
 
