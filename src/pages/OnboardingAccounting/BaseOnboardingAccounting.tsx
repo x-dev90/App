@@ -9,6 +9,7 @@ import ScreenWrapper from '@components/ScreenWrapper';
 import ScrollView from '@components/ScrollView';
 import type {ListItem} from '@components/SelectionList/types';
 import Text from '@components/Text';
+import TextInput from '@components/TextInput';
 
 import {useMemoizedLazyExpensifyIcons} from '@hooks/useLazyAsset';
 import useLocalize from '@hooks/useLocalize';
@@ -19,7 +20,7 @@ import useStyleUtils from '@hooks/useStyleUtils';
 import useTheme from '@hooks/useTheme';
 import useThemeStyles from '@hooks/useThemeStyles';
 
-import {setOnboardingAdminsChatReportID, setOnboardingPolicyID, setOnboardingUserReportedIntegration} from '@libs/actions/Welcome';
+import {setOnboardingAdminsChatReportID, setOnboardingPolicyID, setOnboardingUserReportedIntegration, setOnboardingUserReportedIntegrationName} from '@libs/actions/Welcome';
 import Navigation from '@libs/Navigation/Navigation';
 import {isPaidGroupPolicy, isPolicyAdmin} from '@libs/PolicyUtils';
 
@@ -33,7 +34,7 @@ import ROUTES from '@src/ROUTES';
 import SCREENS from '@src/SCREENS';
 import type IconAsset from '@src/types/utils/IconAsset';
 
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {View} from 'react-native';
 
 import type {BaseOnboardingAccountingProps} from './types';
@@ -115,9 +116,12 @@ function BaseOnboardingAccounting({shouldUseNativeStyles}: BaseOnboardingAccount
     const [allPolicies] = useOnyx(ONYXKEYS.COLLECTION.POLICY);
     const [session] = useOnyx(ONYXKEYS.SESSION);
     const [onboardingUserReportedIntegration] = useOnyx(ONYXKEYS.ONBOARDING_USER_REPORTED_INTEGRATION);
+    const [onboardingUserReportedIntegrationName] = useOnyx(ONYXKEYS.ONBOARDING_USER_REPORTED_INTEGRATION_NAME);
     const onboardingStep = useOnboardingStepCounter(SCREENS.ONBOARDING.ACCOUNTING);
+    const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
 
     const [userReportedIntegration, setUserReportedIntegration] = useState<OnboardingAccounting | undefined>(onboardingUserReportedIntegration ?? undefined);
+    const [userReportedIntegrationName, setUserReportedIntegrationName] = useState(onboardingUserReportedIntegrationName ?? '');
     const [error, setError] = useState('');
 
     const paidGroupPolicy = Object.values(allPolicies ?? {}).find((policy) => isPaidGroupPolicy(policy) && isPolicyAdmin(policy, session?.email));
@@ -129,6 +133,12 @@ function BaseOnboardingAccounting({shouldUseNativeStyles}: BaseOnboardingAccount
         setOnboardingAdminsChatReportID(paidGroupPolicy.chatReportIDAdmins?.toString());
         setOnboardingPolicyID(paidGroupPolicy.id);
     }, [paidGroupPolicy, onboardingPolicyID]);
+
+    const handleInputFocus = useCallback(() => {
+        requestAnimationFrame(() => {
+            scrollViewRef.current?.scrollToEnd({animated: true});
+        });
+    }, []);
 
     const createAccountingOption = (integration: Integration): OnboardingListItem => {
         const icon = expensifyIcons[integration.iconName] as IconAsset | undefined;
@@ -186,6 +196,7 @@ function BaseOnboardingAccounting({shouldUseNativeStyles}: BaseOnboardingAccount
         }
 
         setOnboardingUserReportedIntegration(userReportedIntegration);
+        setOnboardingUserReportedIntegrationName(userReportedIntegration === 'other' ? userReportedIntegrationName.trim() : undefined);
 
         // Navigate to the next onboarding step interested features with the selected integration
         Navigation.navigate(ROUTES.ONBOARDING_INTERESTED_FEATURES.getRoute());
@@ -205,7 +216,11 @@ function BaseOnboardingAccounting({shouldUseNativeStyles}: BaseOnboardingAccount
                 sentryLabel={CONST.SENTRY_LABEL.ONBOARDING.ACCOUNTING_SELECT_INTEGRATION}
                 accessible={false}
                 hoverStyle={styles.hoveredComponentBG}
-                style={[styles.onboardingAccountingItem, isSmallScreenWidth && styles.flexBasis100]}
+                style={[
+                    styles.onboardingAccountingItem,
+                    // 48.5% handles the gap between columns and keeps items aligned when the scrollbar appears
+                    isSmallScreenWidth ? styles.flexBasis100 : {flexBasis: '48.5%', maxWidth: '48.5%'},
+                ]}
             >
                 <RadioButtonWithLabel
                     isChecked={!!item.isSelected}
@@ -246,8 +261,24 @@ function BaseOnboardingAccounting({shouldUseNativeStyles}: BaseOnboardingAccount
                     {translate('onboarding.accounting.title')}
                 </Text>
             </View>
-            <ScrollView style={[onboardingIsMediumOrLargerScreenWidth ? styles.mh8 : styles.mh5, styles.pt3, styles.pb8]}>
+            <ScrollView
+                ref={scrollViewRef}
+                style={[onboardingIsMediumOrLargerScreenWidth ? styles.mh8 : styles.mh5, styles.pt3, styles.pb8]}
+                keyboardShouldPersistTaps="handled"
+            >
                 <View style={[styles.flexRow, styles.flexWrap, styles.gap3, styles.mb3]}>{accountingOptions.map(renderOption)}</View>
+                {userReportedIntegration === 'other' && (
+                    <View style={[styles.mt1, !isSmallScreenWidth && styles.pr2]}>
+                        <TextInput
+                            autoFocus
+                            accessibilityLabel={translate('onboarding.accounting.otherAccountingSoftware')}
+                            label={translate('onboarding.accounting.otherAccountingSoftware')}
+                            value={userReportedIntegrationName}
+                            onFocus={handleInputFocus}
+                            onChangeText={setUserReportedIntegrationName}
+                        />
+                    </View>
+                )}
             </ScrollView>
             <FixedFooter style={[styles.pt3, styles.ph5]}>
                 {!!error && (

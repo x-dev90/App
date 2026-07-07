@@ -5461,6 +5461,7 @@ type CompleteOnboardingProps = {
     paymentSelected?: string;
     companySize?: OnboardingCompanySize;
     userReportedIntegration?: OnboardingAccounting;
+    userReportedIntegrationName?: string;
     wasInvited?: boolean;
     selectedInterestedFeatures?: string[];
     isInvitedAccountant?: boolean;
@@ -5487,6 +5488,7 @@ async function completeOnboarding({
     paymentSelected,
     companySize,
     userReportedIntegration,
+    userReportedIntegrationName,
     wasInvited,
     selectedInterestedFeatures,
     isInvitedAccountant,
@@ -5530,6 +5532,7 @@ async function completeOnboarding({
         paymentSelected,
         companySize,
         userReportedIntegration,
+        userReportedIntegrationName,
         policyID: onboardingPolicyID,
         selfDMReportID: selfDMParameters.reportID,
         selfDMCreatedReportActionID: selfDMParameters.createdReportActionID,
