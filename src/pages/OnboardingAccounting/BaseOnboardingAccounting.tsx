@@ -34,7 +34,7 @@ import ROUTES from '@src/ROUTES';
 import SCREENS from '@src/SCREENS';
 import type IconAsset from '@src/types/utils/IconAsset';
 
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {View} from 'react-native';
 
 import type {BaseOnboardingAccountingProps} from './types';
@@ -133,12 +133,6 @@ function BaseOnboardingAccounting({shouldUseNativeStyles}: BaseOnboardingAccount
         setOnboardingAdminsChatReportID(paidGroupPolicy.chatReportIDAdmins?.toString());
         setOnboardingPolicyID(paidGroupPolicy.id);
     }, [paidGroupPolicy, onboardingPolicyID]);
-
-    const handleInputFocus = useCallback(() => {
-        requestAnimationFrame(() => {
-            scrollViewRef.current?.scrollToEnd({animated: true});
-        });
-    }, []);
 
     const createAccountingOption = (integration: Integration): OnboardingListItem => {
         const icon = expensifyIcons[integration.iconName] as IconAsset | undefined;
@@ -263,19 +257,29 @@ function BaseOnboardingAccounting({shouldUseNativeStyles}: BaseOnboardingAccount
             </View>
             <ScrollView
                 ref={scrollViewRef}
-                style={[onboardingIsMediumOrLargerScreenWidth ? styles.mh8 : styles.mh5, styles.pt3, styles.pb8]}
+                style={[onboardingIsMediumOrLargerScreenWidth ? styles.mh8 : styles.mh5]}
+                contentContainerStyle={[styles.pt3, userReportedIntegration === 'other' ? (isSmallScreenWidth ? styles.pb10 : styles.pb8) : styles.pb5]}
                 keyboardShouldPersistTaps="handled"
             >
                 <View style={[styles.flexRow, styles.flexWrap, styles.gap3, styles.mb3]}>{accountingOptions.map(renderOption)}</View>
                 {userReportedIntegration === 'other' && (
-                    <View style={[styles.mt1, !isSmallScreenWidth && styles.pr2]}>
+                    <View
+                        style={[styles.mt1, !isSmallScreenWidth && styles.pr2]}
+                        onLayout={() => {
+                            requestAnimationFrame(() => {
+                                scrollViewRef.current?.scrollToEnd({animated: !isSmallScreenWidth});
+                            });
+                        }}
+                    >
                         <TextInput
                             autoFocus
-                            accessibilityLabel={translate('onboarding.accounting.otherAccountingSoftware')}
-                            label={translate('onboarding.accounting.otherAccountingSoftware')}
+                            accessibilityLabel="Your accounting software"
+                            label="Your accounting software"
                             value={userReportedIntegrationName}
-                            onFocus={handleInputFocus}
-                            onChangeText={setUserReportedIntegrationName}
+                            onChangeText={(text) => {
+                                setUserReportedIntegrationName(text);
+                                setError('');
+                            }}
                         />
                     </View>
                 )}
