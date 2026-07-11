@@ -198,6 +198,9 @@ function BaseOnboardingAccounting({shouldUseNativeStyles}: BaseOnboardingAccount
 
     const handleIntegrationSelect = (integrationKey: OnboardingListItem['keyForList']) => {
         setUserReportedIntegration(integrationKey === 'none' ? null : integrationKey);
+        if (integrationKey !== 'other') {
+            setUserReportedIntegrationName('');
+        }
         setError('');
     };
 
@@ -257,8 +260,8 @@ function BaseOnboardingAccounting({shouldUseNativeStyles}: BaseOnboardingAccount
             </View>
             <ScrollView
                 ref={scrollViewRef}
-                style={[onboardingIsMediumOrLargerScreenWidth ? styles.mh8 : styles.mh5]}
-                contentContainerStyle={[styles.pt3, userReportedIntegration === 'other' ? (isSmallScreenWidth ? styles.pb10 : styles.pb8) : styles.pb5]}
+                style={[styles.flex1, styles.flexGrow1, onboardingIsMediumOrLargerScreenWidth ? styles.mh8 : styles.mh5]}
+                contentContainerStyle={[styles.pt3, styles.pb5]}
                 keyboardShouldPersistTaps="handled"
             >
                 <View style={[styles.flexRow, styles.flexWrap, styles.gap3, styles.mb3]}>{accountingOptions.map(renderOption)}</View>
@@ -273,8 +276,8 @@ function BaseOnboardingAccounting({shouldUseNativeStyles}: BaseOnboardingAccount
                     >
                         <TextInput
                             autoFocus
-                            accessibilityLabel="Your accounting software"
-                            label="Your accounting software"
+                            accessibilityLabel={translate('onboarding.accounting.otherAccountingSoftware')}
+                            label={translate('onboarding.accounting.otherAccountingSoftware')}
                             value={userReportedIntegrationName}
                             onChangeText={(text) => {
                                 setUserReportedIntegrationName(text);
