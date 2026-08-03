@@ -1,3 +1,4 @@
+import {useIsFocused} from '@react-navigation/native';
 import React from 'react';
 import Reanimated, {useAnimatedStyle} from 'react-native-reanimated';
 
@@ -11,7 +12,13 @@ import usePreventScrollOnKeyboardInteraction from './usePreventScrollOnKeyboardI
 function ActionSheetAwareScrollView({style, children, ref, ...restProps}: ActionSheetAwareScrollViewProps) {
     const {onRef, animatedRef} = useActionSheetAwareScrollViewRef(ref);
 
-    const spacing = useActionSheetKeyboardSpacing(animatedRef);
+    // This list's only consumer (the report actions list) is always rendered inside a navigator screen. When that
+    // screen is covered by an RHP it stays mounted but loses focus; its keyboard handlers must then stop reacting,
+    // otherwise the covered list animates to a keyboard that belongs to the screen on top and the resulting layout
+    // churn cancels the next press on the report. Gating the spacing worklet on focus keeps the covered list inert.
+    const isFocused = useIsFocused();
+
+    const spacing = useActionSheetKeyboardSpacing(animatedRef, isFocused);
     const animatedStyle = useAnimatedStyle(() => ({
         paddingTop: spacing.get(),
     }));

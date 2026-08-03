@@ -22,6 +22,7 @@ import SCREENS from '@src/SCREENS';
 import type {ViewStyle} from 'react-native';
 
 import {PortalHost} from '@gorhom/portal';
+import {useIsFocused} from '@react-navigation/native';
 import React from 'react';
 import {View} from 'react-native';
 
@@ -82,6 +83,12 @@ function ReportScreen({route, navigation, shouldDeferReportActions = false}: Rep
     const {currentReportID: currentReportIDValue} = useCurrentReportIDState();
     const viewportOffsetTop = useViewportOffsetTop();
     const isTopMostReportId = currentReportIDValue === reportIDFromRoute;
+    const isFocused = useIsFocused();
+    // Only the focused report should react to the keyboard. While an RHP (e.g. an edit field) is presented on top,
+    // this ReportScreen stays mounted but loses navigation focus. `isTopMostReportId` is a report-ID equality, not a
+    // focus check, so without `isFocused` the covered screen keeps avoiding the keyboard and animates its layout to a
+    // keyboard it does not own — that churn steals the responder and cancels the next press on the report row.
+    const shouldEnableKeyboardAvoidingView = isFocused && (isTopMostReportId || isInNarrowPaneModal);
     const screenWrapperStyle: ViewStyle[] = [styles.appContent, styles.flex1, {marginTop: viewportOffsetTop}];
 
     const shouldDeferNonEssentials = useDeferNonEssentials(reportIDFromRoute);
@@ -118,7 +125,7 @@ function ReportScreen({route, navigation, shouldDeferReportActions = false}: Rep
                         <ScreenWrapper
                             navigation={navigation}
                             style={screenWrapperStyle}
-                            shouldEnableKeyboardAvoidingView={isTopMostReportId || isInNarrowPaneModal}
+                            shouldEnableKeyboardAvoidingView={shouldEnableKeyboardAvoidingView}
                             testID={`report-screen-${reportIDFromRoute}`}
                         >
                             {!shouldDeferNonEssentials && (

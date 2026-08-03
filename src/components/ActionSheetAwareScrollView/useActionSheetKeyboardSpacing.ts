@@ -2,7 +2,7 @@ import useSafeAreaPaddings from '@hooks/useSafeAreaPaddings';
 import useWindowDimensions from '@hooks/useWindowDimensions';
 
 import type Reanimated from 'react-native-reanimated';
-import type {AnimatedRef} from 'react-native-reanimated';
+import type {AnimatedRef, SharedValue} from 'react-native-reanimated';
 
 import {useEffect} from 'react';
 import {useKeyboardHandler} from 'react-native-keyboard-controller';
@@ -24,7 +24,7 @@ const SPRING_CONFIG = {
     damping: 500,
 };
 
-const useAnimatedKeyboard = () => {
+const useAnimatedKeyboard = (isKeyboardReactive: SharedValue<boolean>) => {
     const state = useSharedValue(KeyboardState.UNKNOWN);
     const height = useSharedValue(0);
     const maxOpenHeight = useSharedValue(0);
@@ -51,6 +51,13 @@ const useAnimatedKeyboard = () => {
             onMove: (e) => {
                 'worklet';
 
+                // While the host screen is unfocused (covered by an RHP), skip the continuous height tracking so a
+                // keyboard belonging to the screen on top does not animate this covered list. onStart/onEnd still run,
+                // so the resting spacing stays correct once focus returns.
+                if (!isKeyboardReactive.get()) {
+                    return;
+                }
+
                 height.set(e.height);
             },
             onEnd: (e) => {
@@ -66,7 +73,7 @@ const useAnimatedKeyboard = () => {
     return {state, height, maxOpenHeight};
 };
 
-function useActionSheetKeyboardSpacing(scrollViewAnimatedRef: AnimatedRef<Reanimated.ScrollView>) {
+function useActionSheetKeyboardSpacing(scrollViewAnimatedRef: AnimatedRef<Reanimated.ScrollView>, isKeyboardReactive = true) {
     const {
         unmodifiedPaddings: {top: paddingTop = 0, bottom: paddingBottom = 0},
     } = useSafeAreaPaddings();
@@ -83,7 +90,13 @@ function useActionSheetKeyboardSpacing(scrollViewAnimatedRef: AnimatedRef<Reanim
         return () => resetStateMachine();
     }, [resetStateMachine]);
 
-    const keyboard = useAnimatedKeyboard();
+    // Mirror the (JS-thread) focus flag into a shared value so the keyboard worklets can read it on the UI thread.
+    const isKeyboardReactiveShared = useSharedValue(isKeyboardReactive);
+    useEffect(() => {
+        isKeyboardReactiveShared.set(isKeyboardReactive);
+    }, [isKeyboardReactive, isKeyboardReactiveShared]);
+
+    const keyboard = useAnimatedKeyboard(isKeyboardReactiveShared);
     useAnimatedReaction(
         () => keyboard.state.get(),
         (lastState) => {
