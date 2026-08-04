@@ -1673,7 +1673,31 @@ function getTransactionViolations(
             (violation) => !isViolationDismissed(transaction, violation, currentUserEmail, currentUserAccountID, iouReport, iouReportOwnerLogin, policy),
         ) ?? [];
 
-    return violations;
+    return getViolationsWithDisabledDistanceRateViolation(transaction, violations, policy);
+}
+
+function getViolationsWithDisabledDistanceRateViolation(transaction: OnyxEntry<Transaction>, transactionViolations: TransactionViolations, policy: OnyxEntry<Policy>): TransactionViolations {
+    if (
+        !isDistanceRequest(transaction) ||
+        isCustomUnitRateIDForP2P(transaction) ||
+        transactionViolations.some((violation) => violation.name === CONST.VIOLATIONS.CUSTOM_UNIT_OUT_OF_POLICY) ||
+        DistanceRequestUtils.getRate({
+            transaction,
+            policy,
+            personalPolicyOutputCurrency: undefined,
+        }).enabled !== false
+    ) {
+        return transactionViolations;
+    }
+
+    return [
+        ...transactionViolations,
+        {
+            name: CONST.VIOLATIONS.CUSTOM_UNIT_OUT_OF_POLICY,
+            type: CONST.VIOLATION_TYPES.VIOLATION,
+            showInReview: true,
+        },
+    ];
 }
 
 /**
@@ -1841,13 +1865,15 @@ function getVisibleTransactionViolations(
     policy: OnyxEntry<Policy>,
     shouldShowRterForSettledReport = true,
 ): TransactionViolations {
-    return mergeProhibitedViolations(
+    const visibleViolations = mergeProhibitedViolations(
         transactionViolations.filter(
             (violation) =>
                 !isViolationDismissed(transaction, violation, currentUserEmail, currentUserAccountID, iouReport, iouReportOwnerLogin, policy) &&
                 shouldShowViolation(iouReport, policy, violation.name, currentUserEmail, shouldShowRterForSettledReport, transaction),
         ),
     );
+
+    return getViolationsWithDisabledDistanceRateViolation(transaction, visibleViolations, policy);
 }
 
 /**
@@ -3290,6 +3316,7 @@ export {
     hasSubmissionBlockingViolationInReport,
     hasSubmissionBlockingViolations,
     hasCustomUnitOutOfPolicyViolation,
+    getViolationsWithDisabledDistanceRateViolation,
     shouldShowBrokenConnectionViolation,
     shouldShowBrokenConnectionViolationForMultipleTransactions,
     hasNoticeTypeViolation,

@@ -22,9 +22,8 @@ function useTransactionsAndViolationsForReport(reportID?: string) {
     const {transactions, violations} = reportID ? (allReportsTransactionsAndViolations?.[reportID] ?? DEFAULT_RETURN_VALUE) : DEFAULT_RETURN_VALUE;
 
     const filteredViolations: Record<string, TransactionViolations> = {};
-    for (const transactionViolationKey of Object.keys(violations)) {
-        const transactionID = transactionViolationKey.split('_').at(1) ?? '';
-        const transaction = transactions[`${ONYXKEYS.COLLECTION.TRANSACTION}${transactionID}`];
+    for (const transaction of Object.values(transactions)) {
+        const transactionViolationKey = `${ONYXKEYS.COLLECTION.TRANSACTION_VIOLATIONS}${transaction.transactionID}`;
         filteredViolations[transactionViolationKey] =
             getTransactionViolations(transaction, violations, currentUserDetails.email ?? '', currentUserDetails.accountID, report, reportOwnerLogin, policy) ?? [];
     }

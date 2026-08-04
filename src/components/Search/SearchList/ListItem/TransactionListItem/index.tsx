@@ -27,6 +27,7 @@ import {isInvoiceReport} from '@libs/ReportUtils';
 import {
     isDeletedTransaction as isDeletedTransactionUtil,
     isViolationDismissed,
+    getViolationsWithDisabledDistanceRateViolation,
     mergeProhibitedViolations,
     shouldShowAttendees,
     shouldShowViolation,
@@ -117,7 +118,7 @@ function TransactionListItemInner<TItem extends ListItem>({
         policyID = policyForMovingExpensesID;
     }
     const [parentPolicy] = originalUseOnyx(`${ONYXKEYS.COLLECTION.POLICY}${getNonEmptyStringOnyxID(policyID)}`);
-    const snapshotPolicy = (currentSearchResults?.data?.[`${ONYXKEYS.COLLECTION.POLICY}${transactionItem.policyID}`] ?? {}) as Policy;
+    const snapshotPolicy = (currentSearchResults?.data?.[`${ONYXKEYS.COLLECTION.POLICY}${policyID}`] ?? {}) as Policy;
 
     const actionsData = currentSearchResults?.data?.[`${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${transactionItem.reportID}`];
     const exportedReportActions = actionsData ? Object.values(actionsData) : [];
@@ -205,7 +206,7 @@ function TransactionListItemInner<TItem extends ListItem>({
         isInvoice,
     );
 
-    const transactionViolations = mergeProhibitedViolations(attendeeOnyxViolations);
+    const transactionViolations = getViolationsWithDisabledDistanceRateViolation(transaction ?? transactionItem, mergeProhibitedViolations(attendeeOnyxViolations), policyForViolations);
 
     const {isDelegateAccessRestricted} = useDelegateNoAccessState();
     const {showDelegateNoAccessModal} = useDelegateNoAccessActions();

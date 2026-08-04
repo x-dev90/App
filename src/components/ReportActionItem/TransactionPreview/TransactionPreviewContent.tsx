@@ -21,7 +21,6 @@ import useThemeStyles from '@hooks/useThemeStyles';
 
 import {getBrokenConnectionUrlToFixPersonalCard} from '@libs/CardUtils';
 import {getDecodedLeafCategoryName} from '@libs/CategoryUtils';
-import DistanceRequestUtils from '@libs/DistanceRequestUtils';
 import getNonEmptyStringOnyxID from '@libs/getNonEmptyStringOnyxID';
 import {calculateAmount} from '@libs/IOUUtils';
 import Parser from '@libs/Parser';
@@ -37,8 +36,7 @@ import type {SkeletonSpanReasonAttributes} from '@libs/telemetry/useSkeletonSpan
 import type {TranslationPathOrText} from '@libs/TransactionPreviewUtils';
 import {createTransactionPreviewConditionals, getIOUPayerAndReceiver, getTransactionPreviewTextAndTranslationPaths} from '@libs/TransactionPreviewUtils';
 import {
-    isCustomUnitRateIDForP2P,
-    isDistanceRequest,
+    getViolationsWithDisabledDistanceRateViolation,
     isManagedCardTransaction as isCardTransactionUtils,
     isGPSDistanceRequest,
     isMapDistanceRequest,
@@ -99,28 +97,7 @@ function TransactionPreviewContent({
     );
     const {amount, comment: requestComment, merchant, tag, category, currency: requestCurrency} = transactionDetails;
     const [originalTransaction] = useOnyx(`${ONYXKEYS.COLLECTION.TRANSACTION}${getNonEmptyStringOnyxID(transaction?.comment?.originalTransactionID)}`);
-    const isDisabledWorkspaceDistanceRate =
-        isDistanceRequest(transaction) &&
-        !isCustomUnitRateIDForP2P(transaction) &&
-        DistanceRequestUtils.getRate({
-            transaction,
-            policy,
-            personalPolicyOutputCurrency: undefined,
-        }).enabled === false;
-    const effectiveViolations = useMemo(() => {
-        if (!isDisabledWorkspaceDistanceRate || violations.some((violation) => violation.name === CONST.VIOLATIONS.CUSTOM_UNIT_OUT_OF_POLICY)) {
-            return violations;
-        }
-
-        return [
-            ...violations,
-            {
-                name: CONST.VIOLATIONS.CUSTOM_UNIT_OUT_OF_POLICY,
-                type: CONST.VIOLATION_TYPES.VIOLATION,
-                showInReview: true,
-            },
-        ];
-    }, [isDisabledWorkspaceDistanceRate, violations]);
+    const effectiveViolations = useMemo(() => getViolationsWithDisabledDistanceRateViolation(transaction, violations, policy), [policy, transaction, violations]);
     const filteredViolations = filterReceiptViolations(effectiveViolations);
     const firstViolation = filteredViolations.at(0);
     const cardID = firstViolation?.data?.cardID;

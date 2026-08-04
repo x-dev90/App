@@ -217,6 +217,7 @@ import {
     getCreated as getTransactionCreatedDate,
     getMerchant as getTransactionMerchant,
     getTransactionViolations,
+    getViolationsWithDisabledDistanceRateViolation,
     hasDisplayableMCC,
     isDeletedTransaction,
     isPending,
@@ -2079,10 +2080,7 @@ function hasVisibleViolations(
             continue;
         }
 
-        const tvs = allViolations[`${ONYXKEYS.COLLECTION.TRANSACTION_VIOLATIONS}${transaction.transactionID}`];
-        if (!tvs) {
-            continue;
-        }
+        const tvs = getViolationsWithDisabledDistanceRateViolation(transaction, allViolations[`${ONYXKEYS.COLLECTION.TRANSACTION_VIOLATIONS}${transaction.transactionID}`] ?? [], policy);
 
         for (const violation of tvs) {
             if (isViolationDismissed(transaction, violation, currentUserEmail, currentUserAccountID, report, reportOwnerLogin, policy)) {
