@@ -586,6 +586,7 @@ function MoneyRequestView({
         unit,
         rate,
         name: rateName,
+        enabled: rateEnabled,
     } = DistanceRequestUtils.getRate({
         transaction: updatedTransaction ?? transaction,
         policy: distanceOriginalPolicy ?? policy,
@@ -594,8 +595,10 @@ function MoneyRequestView({
     const distance = getDistanceInMeters(transactionBackup ?? updatedTransaction ?? transaction, unit);
     const currency = transactionCurrency ?? CONST.CURRENCY.USD;
     const hasRequiredCompanyCardViolation = transactionViolations.some((violation) => violation.name === CONST.VIOLATIONS.COMPANY_CARD_REQUIRED);
-    const isCustomUnitOutOfPolicy =
-        (transactionViolations.some((violation) => violation.name === CONST.VIOLATIONS.CUSTOM_UNIT_OUT_OF_POLICY) || (isDistanceRequest && !rate)) && !isTrackExpense;
+    const hasCustomUnitOutOfPolicyViolation = transactionViolations.some((violation) => violation.name === CONST.VIOLATIONS.CUSTOM_UNIT_OUT_OF_POLICY);
+    const isMissingWorkspaceDistanceRate = isDistanceRequest && !rate && !isP2PDistanceRequest;
+    const isDisabledWorkspaceDistanceRate = isDistanceRequest && rateEnabled === false && !isP2PDistanceRequest;
+    const isCustomUnitOutOfPolicy = hasCustomUnitOutOfPolicyViolation || isMissingWorkspaceDistanceRate || isDisabledWorkspaceDistanceRate;
     const calculateFromTransactionData = isTrackExpense && !rate;
     const distanceUnit = calculateFromTransactionData ? transaction?.comment?.customUnit?.distanceUnit : unit;
     const distanceRate = calculateFromTransactionData ? (transactionAmount ?? 0) / (transaction?.comment?.customUnit?.quantity ?? 1) : rate;

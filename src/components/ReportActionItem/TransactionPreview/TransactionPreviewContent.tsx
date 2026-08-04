@@ -21,6 +21,7 @@ import useThemeStyles from '@hooks/useThemeStyles';
 
 import {getBrokenConnectionUrlToFixPersonalCard} from '@libs/CardUtils';
 import {getDecodedLeafCategoryName} from '@libs/CategoryUtils';
+import DistanceRequestUtils from '@libs/DistanceRequestUtils';
 import getNonEmptyStringOnyxID from '@libs/getNonEmptyStringOnyxID';
 import {calculateAmount} from '@libs/IOUUtils';
 import Parser from '@libs/Parser';
@@ -35,7 +36,14 @@ import StringUtils from '@libs/StringUtils';
 import type {SkeletonSpanReasonAttributes} from '@libs/telemetry/useSkeletonSpan';
 import type {TranslationPathOrText} from '@libs/TransactionPreviewUtils';
 import {createTransactionPreviewConditionals, getIOUPayerAndReceiver, getTransactionPreviewTextAndTranslationPaths} from '@libs/TransactionPreviewUtils';
-import {isManagedCardTransaction as isCardTransactionUtils, isGPSDistanceRequest, isMapDistanceRequest, isScanning} from '@libs/TransactionUtils';
+import {
+    isCustomUnitRateIDForP2P,
+    isDistanceRequest,
+    isManagedCardTransaction as isCardTransactionUtils,
+    isGPSDistanceRequest,
+    isMapDistanceRequest,
+    isScanning,
+} from '@libs/TransactionUtils';
 import ViolationsUtils, {filterReceiptViolations} from '@libs/Violations/ViolationsUtils';
 
 import variables from '@styles/variables';
@@ -91,7 +99,29 @@ function TransactionPreviewContent({
     );
     const {amount, comment: requestComment, merchant, tag, category, currency: requestCurrency} = transactionDetails;
     const [originalTransaction] = useOnyx(`${ONYXKEYS.COLLECTION.TRANSACTION}${getNonEmptyStringOnyxID(transaction?.comment?.originalTransactionID)}`);
-    const filteredViolations = filterReceiptViolations(violations);
+    const isDisabledWorkspaceDistanceRate =
+        isDistanceRequest(transaction) &&
+        !isCustomUnitRateIDForP2P(transaction) &&
+        DistanceRequestUtils.getRate({
+            transaction,
+            policy,
+            personalPolicyOutputCurrency: undefined,
+        }).enabled === false;
+    const effectiveViolations = useMemo(() => {
+        if (!isDisabledWorkspaceDistanceRate || violations.some((violation) => violation.name === CONST.VIOLATIONS.CUSTOM_UNIT_OUT_OF_POLICY)) {
+            return violations;
+        }
+
+        return [
+            ...violations,
+            {
+                name: CONST.VIOLATIONS.CUSTOM_UNIT_OUT_OF_POLICY,
+                type: CONST.VIOLATION_TYPES.VIOLATION,
+                showInReview: true,
+            },
+        ];
+    }, [isDisabledWorkspaceDistanceRate, violations]);
+    const filteredViolations = filterReceiptViolations(effectiveViolations);
     const firstViolation = filteredViolations.at(0);
     const cardID = firstViolation?.data?.cardID;
     const [card] = useOnyx(ONYXKEYS.CARD_LIST, {selector: cardByIdSelector(String(cardID))});
@@ -113,10 +143,10 @@ function TransactionPreviewContent({
             transaction,
             action,
             isBillSplit,
-            violations,
+            violations: effectiveViolations,
             transactionDetails,
         }),
-        [action, report, ownerLogin, policy, isBillSplit, transaction, transactionDetails, violations],
+        [action, report, ownerLogin, policy, isBillSplit, transaction, transactionDetails, effectiveViolations],
     );
 
     const conditionals = useMemo(
@@ -139,7 +169,7 @@ function TransactionPreviewContent({
     const companyCardPageURL = `${environmentURL}/${ROUTES.WORKSPACE_COMPANY_CARDS.getRoute(report?.policyID)}`;
     const {personalCardsWithBrokenConnection} = useCardFeedErrors();
     const connectionLink = getBrokenConnectionUrlToFixPersonalCard(personalCardsWithBrokenConnection, environmentURL);
-    const isMarkAsCash = parentReport && currentUserLogin ? isMarkAsCashActionForTransaction(currentUserLogin, parentReport, violations, policy) : false;
+    const isMarkAsCash = parentReport && currentUserLogin ? isMarkAsCashActionForTransaction(currentUserLogin, parentReport, effectiveViolations, policy) : false;
 
     const violationMessage = firstViolation
         ? ViolationsUtils.getViolationTranslation({
