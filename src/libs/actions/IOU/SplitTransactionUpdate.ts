@@ -7,6 +7,7 @@ import DateUtils from '@libs/DateUtils';
 import {getMicroSecondOnyxErrorWithTranslationKey} from '@libs/ErrorUtils';
 import {calculateAmount as calculateIOUAmount} from '@libs/IOUUtils';
 import Log from '@libs/Log';
+import {isFullScreenName} from '@libs/Navigation/helpers/isNavigatorName';
 import isSearchTopmostFullScreenRoute from '@libs/Navigation/helpers/isSearchTopmostFullScreenRoute';
 import popReportsSplitNavigatorToReport from '@libs/Navigation/helpers/popReportsSplitNavigatorToReport';
 import Navigation, {navigationRef} from '@libs/Navigation/Navigation';
@@ -40,7 +41,6 @@ import {
     isArchivedReport,
     isPolicyExpenseChat as isPolicyExpenseChatReportUtil,
     isSelfDM,
-    navigateBackOnDeleteTransaction,
     updateOptimisticParentReportAction,
 } from '@libs/ReportUtils';
 import {getCurrentSearchQueryJSON} from '@libs/SearchQueryUtils';
@@ -78,7 +78,7 @@ import type {BuildOnyxDataForMoneyRequestKeys, MoneyRequestInformationParams} fr
 import type {UpdateMoneyRequestDataKeys} from './UpdateMoneyRequest';
 
 import {getCleanUpTransactionThreadReportOnyxData} from './DeleteMoneyRequest';
-import {getAllReports} from './index';
+import {getAllPersonalDetails, getAllReportNameValuePairs, getAllReports, getAllSnapshots} from './index';
 import {getMoneyRequestParticipantsFromReport} from './MoneyRequest';
 import {getMoneyRequestInformation, getReportPreviewAction} from './MoneyRequestBuilder';
 import {addPendingNewTransactionIDs} from './PendingNewTransactions';
@@ -119,6 +119,11 @@ type UpdateSplitTransactionsParams = {
     delegateAccountID: number | undefined;
     isTrackIntentUser: boolean | undefined;
 };
+
+type UpdateSplitTransactionsFromSplitExpensesFlowParams = Omit<UpdateSplitTransactionsParams, 'allReportNameValuePairsList' | 'allSnapshots' | 'personalDetails'> &
+    Partial<Pick<UpdateSplitTransactionsParams, 'allReportNameValuePairsList' | 'allSnapshots' | 'personalDetails'>> & {
+        allChildTransactions?: OnyxTypes.Transaction[];
+    };
 
 /**
  * Picks the transaction in `snapshotData` whose conversion can be reused for `transaction`: candidates are
@@ -1979,14 +1984,14 @@ function updateSplitTransactions({
     TransitionTracker.runAfterTransitions({callback: () => removeDraftSplitTransaction(originalTransactionID), waitForUpcomingTransition: true});
 }
 
-function updateSplitTransactionsFromSplitExpensesFlow(params: UpdateSplitTransactionsParams) {
+function updateSplitTransactionsFromSplitExpensesFlow(params: UpdateSplitTransactionsFromSplitExpensesFlowParams) {
     // Detect if this will be a reverse split that deletes the expense report.
     // When splits are reduced to 1, updateSplitTransactions performs a reverse split which
     // optimistically deletes the expense report if it's the last transaction. We need to
     // set the navigate-back URL before the deletion to prevent the "Not Found" page.
     const splitExpenses = params.transactionData?.splitExpenses ?? [];
     const originalTransactionID = params.transactionData?.originalTransactionID ?? CONST.IOU.OPTIMISTIC_TRANSACTION_ID;
-    const allChildTransactions = getChildTransactions(params.allTransactionsList, originalTransactionID, false);
+    const allChildTransactions = params.allChildTransactions ?? getChildTransactions(params.allTransactionsList, originalTransactionID, false);
     const hasEditableSplitExpensesLeft = splitExpenses.some((expense) => (expense.statusNum ?? 0) < CONST.REPORT.STATUS_NUM.SUBMITTED);
 
     // Unfiltered, so a pure selfDM 2-split still collapses via REVERT_SPLIT_TRANSACTION. The mixed
@@ -2024,6 +2029,25 @@ function updateSplitTransactionsFromSplitExpensesFlow(params: UpdateSplitTransac
         setDeleteTransactionNavigateBackUrl(ROUTES.REPORT_WITH_ID.getRoute(fallbackReportID));
     }
 
+    const transactionThreadReportID = params.firstIOU?.childReportID;
+    const transactionThreadReportScreen = Navigation.getReportRouteByID(transactionThreadReportID);
+    const runDeferredSplitUpdate = () => {
+        updateSplitTransactions({
+            ...params,
+            allReportNameValuePairsList: params.allReportNameValuePairsList ?? getAllReportNameValuePairs(),
+            allSnapshots: params.allSnapshots ?? getAllSnapshots(),
+            personalDetails: params.personalDetails ?? getAllPersonalDetails(),
+            isFromSplitExpensesFlow: true,
+        });
+    };
+    const runDeferredSplitUpdateAndRemoveTransactionThread = () => {
+        runDeferredSplitUpdate();
+        if (!transactionThreadReportScreen?.key) {
+            return;
+        }
+        Navigation.removeScreenByKey(transactionThreadReportScreen.key);
+    };
+
     const isSearchPageTopmostFullScreenRoute = isSearchTopmostFullScreenRoute();
     const isSelfDMSplit = !isSearchPageTopmostFullScreenRoute && isSelfDM(params.transactionReport) && !!params.transactionReport?.reportID;
 
@@ -2040,16 +2064,10 @@ function updateSplitTransactionsFromSplitExpensesFlow(params: UpdateSplitTransac
     const selfDMReportID = params.transactionReport?.reportID;
     if (isSelfDMSplit && selfDMReportID) {
         popReportsSplitNavigatorToReport(selfDMReportID);
-        Navigation.dismissModal();
-        requestAnimationFrame(() => {
-            updateSplitTransactions({...params, isFromSplitExpensesFlow: true});
-        });
+        Navigation.dismissModal({afterTransition: runDeferredSplitUpdate});
         params?.searchContext?.clearSelectedTransactions?.(true);
         return;
     }
-
-    const transactionThreadReportID = params.firstIOU?.childReportID;
-    const transactionThreadReportScreen = Navigation.getReportRouteByID(transactionThreadReportID);
 
     // Reset selected transactions in search after saving split expenses
     const searchFullScreenRoutes = navigationRef.getRootState()?.routes.findLast((route) => route.name === NAVIGATORS.SEARCH_FULLSCREEN_NAVIGATOR);
@@ -2088,21 +2106,12 @@ function updateSplitTransactionsFromSplitExpensesFlow(params: UpdateSplitTransac
 
     if (isSearchPageTopmostFullScreenRoute || !params.transactionReport?.parentReportID) {
         registerSearchRouteHighlight();
-        updateSplitTransactions({...params, isFromSplitExpensesFlow: true});
 
         if (!isSelfDMSplit) {
-            Navigation.navigateBackToLastSuperWideRHPScreen();
+            Navigation.navigateBackToLastSuperWideRHPScreen({afterTransition: runDeferredSplitUpdateAndRemoveTransactionThread});
+        } else {
+            runDeferredSplitUpdateAndRemoveTransactionThread();
         }
-
-        // After the modal is dismissed, remove the transaction thread report screen
-        // to avoid navigating back to a report removed by the split transaction.
-        requestAnimationFrame(() => {
-            if (!transactionThreadReportScreen?.key) {
-                return;
-            }
-
-            Navigation.removeScreenByKey(transactionThreadReportScreen.key);
-        });
 
         return;
     }
@@ -2111,17 +2120,28 @@ function updateSplitTransactionsFromSplitExpensesFlow(params: UpdateSplitTransac
     // (dismissToSuperWideRHP + goBack) instead of dismissModalWithReport. This naturally pops
     // stale screens from the stack instead of leaving them behind.
     if (isLastTransactionInReport && fallbackReportID) {
-        updateSplitTransactions({...params, isFromSplitExpensesFlow: true});
-
         const backRoute = ROUTES.REPORT_WITH_ID.getRoute(fallbackReportID);
-        navigateBackOnDeleteTransaction(backRoute);
-
-        // Remove the transaction thread report screen to avoid navigating back to a removed report
-        requestAnimationFrame(() => {
+        const runAfterNavigatingAwayFromDeletedReport = () => {
+            runDeferredSplitUpdate();
             if (!transactionThreadReportScreen?.key) {
                 return;
             }
             Navigation.removeScreenByKey(transactionThreadReportScreen.key);
+        };
+
+        const rootState = navigationRef.current?.getRootState();
+        const lastFullScreenRoute = rootState?.routes.findLast((route) => isFullScreenName(route.name));
+        if (lastFullScreenRoute?.name === NAVIGATORS.SEARCH_FULLSCREEN_NAVIGATOR) {
+            Navigation.dismissToSuperWideRHP({afterTransition: runAfterNavigatingAwayFromDeletedReport});
+            return;
+        }
+
+        Navigation.dismissToSuperWideRHP({
+            afterTransition: () => {
+                Navigation.isNavigationReady().then(() => {
+                    Navigation.goBack(backRoute, {afterTransition: runAfterNavigatingAwayFromDeletedReport});
+                });
+            },
         });
 
         return;
@@ -2143,14 +2163,7 @@ function updateSplitTransactionsFromSplitExpensesFlow(params: UpdateSplitTransac
     }
 
     popReportsSplitNavigatorToReport(targetReportID);
-    Navigation.dismissModalWithReport({reportID: targetReportID});
-    requestAnimationFrame(() => {
-        updateSplitTransactions({...params, isFromSplitExpensesFlow: true});
-        if (!transactionThreadReportScreen?.key) {
-            return;
-        }
-        Navigation.removeScreenByKey(transactionThreadReportScreen.key);
-    });
+    Navigation.dismissModalWithReport({reportID: targetReportID}, navigationRef, {afterTransition: runDeferredSplitUpdateAndRemoveTransactionThread});
 }
 
 export {updateSplitTransactions, updateSplitTransactionsFromSplitExpensesFlow};
