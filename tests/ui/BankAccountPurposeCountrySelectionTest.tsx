@@ -1,11 +1,14 @@
 import {act, render} from '@testing-library/react-native';
 
+import useOnyx from '@hooks/useOnyx';
+
 import CountrySelection from '@pages/settings/Wallet/BankAccountPurposePage/substeps/CountrySelection';
 import CountrySelectionList from '@pages/settings/Wallet/CountrySelectionList';
 
 import {clearReimbursementAccount, clearReimbursementAccountDraft, navigateToBankAccountRoute, updateReimbursementAccountDraft} from '@userActions/ReimbursementAccount';
 
 import CONST from '@src/CONST';
+import ONYXKEYS from '@src/ONYXKEYS';
 import ROUTES from '@src/ROUTES';
 import SCREENS from '@src/SCREENS';
 
@@ -21,7 +24,7 @@ jest.mock('@hooks/useLocalize', () =>
         translate: (key: string) => key,
     })),
 );
-jest.mock('@hooks/useOnyx', () => jest.fn(() => [undefined, jest.fn()]));
+jest.mock('@hooks/useOnyx', () => jest.fn(() => [undefined, {status: 'loaded'}]));
 jest.mock('@hooks/usePersonalPolicy', () => jest.fn(() => ({outputCurrency: undefined})));
 jest.mock('@hooks/useThemeStyles', () =>
     jest.fn(() => ({
@@ -34,6 +37,10 @@ jest.mock('@userActions/ReimbursementAccount', () => ({
     navigateToBankAccountRoute: jest.fn(),
     updateReimbursementAccountDraft: jest.fn(),
 }));
+jest.mock('@userActions/BankAccounts', () => ({
+    clearInternationalBankAccount: jest.fn(),
+    clearPersonalBankAccount: jest.fn(),
+}));
 
 const Stack = createStackNavigator();
 
@@ -43,6 +50,7 @@ describe('BankAccountPurpose CountrySelection', () => {
     const mockedClearReimbursementAccountDraft = jest.mocked(clearReimbursementAccountDraft);
     const mockedNavigateToBankAccountRoute = jest.mocked(navigateToBankAccountRoute);
     const mockedUpdateReimbursementAccountDraft = jest.mocked(updateReimbursementAccountDraft);
+    const mockedUseOnyx = jest.mocked(useOnyx);
 
     let mockMountCount = 0;
     let mockUnmountCount = 0;
@@ -56,6 +64,7 @@ describe('BankAccountPurpose CountrySelection', () => {
         mockedClearReimbursementAccountDraft.mockClear();
         mockedNavigateToBankAccountRoute.mockClear();
         mockedUpdateReimbursementAccountDraft.mockClear();
+        mockedUseOnyx.mockImplementation(() => [undefined, {status: 'loaded'}]);
         mockedCountrySelectionList.mockImplementation(() => {
             React.useEffect(() => {
                 mockMountCount += 1;
@@ -106,6 +115,42 @@ describe('BankAccountPurpose CountrySelection', () => {
         expect(mockedNavigateToBankAccountRoute).toHaveBeenCalledWith({backTo: ROUTES.SETTINGS_BANK_ACCOUNT_PURPOSE});
         expect(mockMountCount).toBe(1);
         expect(mockUnmountCount).toBe(0);
+    });
+
+    it('preserves a compatible business draft and reuses its backend identity', async () => {
+        mockedUseOnyx.mockImplementation((key) => {
+            if (key === ONYXKEYS.REIMBURSEMENT_ACCOUNT) {
+                return [{achData: {policyID: 'policy-1', bankAccountID: 123}}, {status: 'loaded'}];
+            }
+            if (key === ONYXKEYS.FORMS.REIMBURSEMENT_ACCOUNT_FORM_DRAFT) {
+                return [{country: 'LT', currency: CONST.BBA_COUNTRY_CURRENCY_MAP.LT, companyName: 'Example'}, {status: 'loaded'}];
+            }
+            return [undefined, {status: 'loaded'}];
+        });
+
+        render(
+            <NavigationContainer>
+                <Stack.Navigator>
+                    <Stack.Screen
+                        name={SCREENS.SETTINGS.BANK_ACCOUNT_PURPOSE}
+                        component={CountrySelection}
+                    />
+                </Stack.Navigator>
+            </NavigationContainer>,
+        );
+
+        act(() => {
+            mockedCountrySelectionList.mock.lastCall?.[0]?.onCountrySelected('LT');
+        });
+        await act(async () => {
+            mockedCountrySelectionList.mock.lastCall?.[0]?.onConfirm();
+            jest.runOnlyPendingTimers();
+        });
+
+        expect(mockedClearReimbursementAccount).not.toHaveBeenCalled();
+        expect(mockedClearReimbursementAccountDraft).not.toHaveBeenCalled();
+        expect(mockedUpdateReimbursementAccountDraft).not.toHaveBeenCalled();
+        expect(mockedNavigateToBankAccountRoute).toHaveBeenCalledWith({policyID: 'policy-1', bankAccountID: 123, backTo: ROUTES.SETTINGS_BANK_ACCOUNT_PURPOSE});
     });
 
     afterEach(() => {

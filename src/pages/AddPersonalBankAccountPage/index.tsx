@@ -15,7 +15,8 @@ import {getCurrentAddress, getStreetLines} from '@libs/PersonalDetailsUtils';
 
 import Navigation, {navigationRef} from '@navigation/Navigation';
 
-import {addPersonalBankAccount, clearPersonalBankAccount} from '@userActions/BankAccounts';
+import {addPersonalBankAccount, clearPersonalBankAccount, updatePersonalBankAccountCurrentPage} from '@userActions/BankAccounts';
+import {clearDraftValues} from '@userActions/FormActions';
 import {continueSetup} from '@userActions/PaymentMethods';
 
 import CONST from '@src/CONST';
@@ -23,6 +24,7 @@ import NAVIGATORS from '@src/NAVIGATORS';
 import ONYXKEYS from '@src/ONYXKEYS';
 import ROUTES from '@src/ROUTES';
 import SCREENS from '@src/SCREENS';
+import isLoadingOnyxValue from '@src/types/utils/isLoadingOnyxValue';
 
 import {useRoute} from '@react-navigation/native';
 import React, {useContext, useEffect, useRef} from 'react';
@@ -51,21 +53,25 @@ const pagesWithManualSetup = [{pageName: SUB_PAGE_NAMES.MANUAL_BANK_ACCOUNT_DETA
 const DEFAULT_OBJECT = {};
 const ACCOUNT_OWNERSHIP_ERROR_SUBSTRING = 'account ownership';
 
+type PersonalBankAccountSubPageProps = SubPageProps & {
+    shouldSaveDraft?: boolean;
+};
+
 function AddPersonalBankAccountPage() {
     const {translate} = useLocalize();
     const route = useRoute();
     const urlSubPage = (route.params as {subPage?: string} | undefined)?.subPage;
 
-    const [privatePersonalDetails] = useOnyx(ONYXKEYS.PRIVATE_PERSONAL_DETAILS);
-    const [personalBankAccount] = useOnyx(ONYXKEYS.FORMS.PERSONAL_BANK_ACCOUNT_FORM_DRAFT);
-    const [fullPersonalBankAccount] = useOnyx(ONYXKEYS.PERSONAL_BANK_ACCOUNT);
+    const [privatePersonalDetails, privatePersonalDetailsMetadata] = useOnyx(ONYXKEYS.PRIVATE_PERSONAL_DETAILS);
+    const [personalBankAccount, personalBankAccountMetadata] = useOnyx(ONYXKEYS.FORMS.PERSONAL_BANK_ACCOUNT_FORM_DRAFT);
+    const [fullPersonalBankAccount, fullPersonalBankAccountMetadata] = useOnyx(ONYXKEYS.PERSONAL_BANK_ACCOUNT);
     const isManual = personalBankAccount?.setupType === CONST.BANK_ACCOUNT.SETUP_TYPE.MANUAL || urlSubPage === SUB_PAGE_NAMES.MANUAL_BANK_ACCOUNT_DETAILS;
     const error = getLatestErrorMessage(fullPersonalBankAccount ?? DEFAULT_OBJECT);
     const confirmedOwnershipDetails = useRef(false);
     const [countryCode = CONST.DEFAULT_COUNTRY_CODE] = useOnyx(ONYXKEYS.COUNTRY_CODE);
     const [personalPolicyID] = useOnyx(ONYXKEYS.PERSONAL_POLICY_ID);
 
-    const [plaidData] = useOnyx(ONYXKEYS.PLAID_DATA);
+    const [plaidData, plaidDataMetadata] = useOnyx(ONYXKEYS.PLAID_DATA);
     const kycWallRef = useContext(KYCWallContext);
 
     const shouldShowSuccess = fullPersonalBankAccount?.shouldShowSuccess ?? false;
@@ -97,6 +103,9 @@ function AddPersonalBankAccountPage() {
             continueSetup(kycWallRef, onSuccessFallbackRoute);
         } else {
             exit();
+        }
+        if (fullPersonalBankAccount?.source === CONST.BANK_ACCOUNT.SOURCE.WALLET) {
+            clearDraftValues(ONYXKEYS.FORMS.HOME_ADDRESS_FORM);
         }
         // Clear the flow's scratch state on every real exit path. The flow no longer clears on unmount.
         clearPersonalBankAccount();
@@ -150,15 +159,52 @@ function AddPersonalBankAccountPage() {
         route.name === SCREENS.SETTINGS.ADD_US_BANK_ACCOUNT ? ROUTES.SETTINGS_ADD_US_BANK_ACCOUNT.getRoute(pageName, action) : ROUTES.BANK_ACCOUNT_PERSONAL.getRoute(pageName, action);
     const onFinished = (data?: unknown) => exitFlow(!!data);
 
-    const {CurrentPage, isEditing, nextPage, prevPage, moveTo, pageIndex, currentPageName, isRedirecting} = useSubPage<SubPageProps>({
+    const savedPageIndex = pages.findIndex((page) => page.pageName === fullPersonalBankAccount?.currentPage);
+    const setupPageIndex = pages.findIndex((page) => page.pageName === personalBankAccount?.setupType);
+    const firstIncompletePageIndex = pages.findIndex((page) => {
+        if (skipPages.includes(page.pageName)) {
+            return false;
+        }
+        if (page.pageName === SUB_PAGE_NAMES.LEGAL_NAME) {
+            return !personalBankAccount?.legalFirstName || !personalBankAccount?.legalLastName;
+        }
+        if (page.pageName === SUB_PAGE_NAMES.ADDRESS) {
+            return !personalBankAccount?.addressStreet || !personalBankAccount?.addressCity || !personalBankAccount?.addressState || !personalBankAccount?.addressZipCode;
+        }
+        if (page.pageName === SUB_PAGE_NAMES.PHONE_NUMBER) {
+            return !personalBankAccount?.phoneNumber;
+        }
+        return page.pageName === SUB_PAGE_NAMES.CONFIRMATION;
+    });
+    const isResumeStateLoading = isLoadingOnyxValue(privatePersonalDetailsMetadata, personalBankAccountMetadata, fullPersonalBankAccountMetadata, plaidDataMetadata);
+    const hasCompletedConnection = isManual
+        ? !!personalBankAccount?.routingNumber && !!personalBankAccount?.accountNumber
+        : !!personalBankAccount?.selectedPlaidAccountID || !!personalBankAccount?.plaidAccountID;
+    const draftStartFrom = hasCompletedConnection && firstIncompletePageIndex > 0 ? firstIncompletePageIndex : Math.max(setupPageIndex, 0);
+    const startFrom = isResumeStateLoading ? -1 : fullPersonalBankAccount?.source === CONST.BANK_ACCOUNT.SOURCE.WALLET ? (savedPageIndex >= 0 ? savedPageIndex : draftStartFrom) : 0;
+
+    const {CurrentPage, isEditing, nextPage, prevPage, moveTo, pageIndex, currentPageName, isRedirecting} = useSubPage<PersonalBankAccountSubPageProps>({
         pages,
         skipPages,
+        startFrom,
         onFinished,
         buildRoute,
     });
 
     const confirmationIndex = pages.findIndex((page) => page.pageName === SUB_PAGE_NAMES.CONFIRMATION);
     const successIndex = pages.findIndex((page) => page.pageName === SUB_PAGE_NAMES.SUCCESS);
+
+    useEffect(() => {
+        if (
+            fullPersonalBankAccount?.source !== CONST.BANK_ACCOUNT.SOURCE.WALLET ||
+            !currentPageName ||
+            currentPageName === SUB_PAGE_NAMES.SUCCESS ||
+            !pages.some((page) => page.pageName === currentPageName)
+        ) {
+            return;
+        }
+        updatePersonalBankAccountCurrentPage(currentPageName);
+    }, [currentPageName, fullPersonalBankAccount?.source, pages]);
 
     const handleNext = (data?: unknown) => {
         // When editing a field from the confirmation step, jump straight back to it.
@@ -212,7 +258,7 @@ function AddPersonalBankAccountPage() {
         };
     }, [error]);
 
-    if (isRedirecting) {
+    if (isRedirecting || isResumeStateLoading) {
         return <FullScreenLoadingIndicator />;
     }
 
@@ -226,6 +272,7 @@ function AddPersonalBankAccountPage() {
                 isEditing={isEditing}
                 onNext={handleNext}
                 onMove={moveTo}
+                shouldSaveDraft={fullPersonalBankAccount?.source === CONST.BANK_ACCOUNT.SOURCE.WALLET}
             />
         </InteractiveStepWrapper>
     );

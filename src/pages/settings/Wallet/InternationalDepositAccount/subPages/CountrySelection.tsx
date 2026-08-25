@@ -5,7 +5,7 @@ import Navigation from '@libs/Navigation/Navigation';
 import CountrySelectionList from '@pages/settings/Wallet/CountrySelectionList';
 import type CustomSubPageProps from '@pages/settings/Wallet/InternationalDepositAccount/types';
 
-import {fetchCorpayFields} from '@userActions/BankAccounts';
+import {clearInternationalBankAccount, fetchCorpayFields} from '@userActions/BankAccounts';
 
 import CONST, {COUNTRIES_US_BANK_FLOW} from '@src/CONST';
 import ONYXKEYS from '@src/ONYXKEYS';
@@ -21,11 +21,13 @@ function CountrySelection({isEditing, onNext, onMove, formValues, fieldsMap}: Cu
 
     const onCountrySelected = useCallback(() => {
         if (COUNTRIES_US_BANK_FLOW.includes(selectedCountry)) {
-            if (isUserValidated) {
-                Navigation.navigate(ROUTES.SETTINGS_ADD_US_BANK_ACCOUNT_ENTRY_POINT);
-            } else {
-                Navigation.navigate(ROUTES.SETTINGS_ADD_BANK_ACCOUNT_SELECT_COUNTRY_VERIFY_ACCOUNT);
-            }
+            clearInternationalBankAccount().then(() => {
+                if (isUserValidated) {
+                    Navigation.navigate(ROUTES.SETTINGS_ADD_US_BANK_ACCOUNT_ENTRY_POINT);
+                } else {
+                    Navigation.navigate(ROUTES.SETTINGS_ADD_BANK_ACCOUNT_SELECT_COUNTRY_VERIFY_ACCOUNT);
+                }
+            });
             return;
         }
         if (!isEmptyObject(fieldsMap) && formValues.bankCountry === selectedCountry) {

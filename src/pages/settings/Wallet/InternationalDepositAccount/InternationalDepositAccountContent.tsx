@@ -7,8 +7,7 @@ import useLocalize from '@hooks/useLocalize';
 import useRootNavigationState from '@hooks/useRootNavigationState';
 import useSubPage from '@hooks/useSubPage';
 
-import {clearCorpayBankAccountFields} from '@libs/actions/BankAccounts';
-import {clearDraftValues} from '@libs/actions/FormActions';
+import {clearInternationalBankAccount} from '@libs/actions/BankAccounts';
 import getActiveTabName from '@libs/Navigation/helpers/getActiveTabName';
 import {isFullScreenName} from '@libs/Navigation/helpers/isNavigatorName';
 import Navigation from '@libs/Navigation/Navigation';
@@ -120,8 +119,7 @@ function InternationalDepositAccountContent({
     };
 
     const handleFinishStep = () => {
-        clearDraftValues(ONYXKEYS.FORMS.INTERNATIONAL_BANK_ACCOUNT_FORM);
-        clearCorpayBankAccountFields();
+        clearInternationalBankAccount();
         goBack(backTo?.includes(ROUTES.SETTINGS_BANK_ACCOUNT_PURPOSE));
     };
 
@@ -145,8 +143,7 @@ function InternationalDepositAccountContent({
 
         // Clicking back on the first screen should dismiss the modal
         if (pageIndex === CONST.CORPAY_FIELDS.INDEXES.MAPPING.COUNTRY_SELECTOR) {
-            clearDraftValues(ONYXKEYS.FORMS.INTERNATIONAL_BANK_ACCOUNT_FORM);
-            clearCorpayBankAccountFields();
+            clearInternationalBankAccount();
             goBack();
             return true;
         }

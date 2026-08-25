@@ -95,6 +95,13 @@ type OpenPersonalBankAccountSetupViewProps = {
     onSuccessFallbackRoute?: Route;
 };
 
+type OpenWalletPersonalBankAccountSetupProps = {
+    personalBankAccount: OnyxEntry<PersonalBankAccount>;
+    personalDraft: OnyxEntry<PersonalBankAccountForm>;
+    internationalDraft: OnyxEntry<InternationalBankAccountForm>;
+    isUserValidated?: boolean;
+};
+
 type VBBAOnyxKey =
     | typeof ONYXKEYS.REIMBURSEMENT_ACCOUNT
     | typeof ONYXKEYS.NVP_LAST_PAYMENT_METHOD
@@ -167,6 +174,32 @@ function openPersonalBankAccountSetupView({
         }
         Navigation.navigate(ROUTES.SETTINGS_ADD_BANK_ACCOUNT.getRoute(Navigation.getActiveRoute()));
     });
+}
+
+/** Opens a new Wallet-owned personal setup or resumes the compatible unfinished setup passed by a hydrated caller. */
+function openWalletPersonalBankAccountSetup({personalBankAccount, personalDraft, internationalDraft, isUserValidated = true}: OpenWalletPersonalBankAccountSetupProps) {
+    const hasPersonalProgress = !!personalDraft?.setupType;
+    const hasInternationalProgress = !!internationalDraft?.bankCountry;
+    const shouldResume = personalBankAccount?.source === CONST.BANK_ACCOUNT.SOURCE.WALLET && (hasPersonalProgress || hasInternationalProgress);
+
+    if (!shouldResume) {
+        Onyx.set(ONYXKEYS.FORMS.HOME_ADDRESS_FORM_DRAFT, null);
+        openPersonalBankAccountSetupView({isUserValidated, source: CONST.BANK_ACCOUNT.SOURCE.WALLET});
+        return;
+    }
+
+    if (!isUserValidated) {
+        Navigation.navigate(createDynamicRoute(DYNAMIC_ROUTES.ADD_BANK_ACCOUNT_VERIFY_ACCOUNT.getRoute(true)));
+        return;
+    }
+
+    const setupType = personalDraft?.setupType;
+    if (setupType === CONST.BANK_ACCOUNT.SETUP_TYPE.MANUAL || setupType === CONST.BANK_ACCOUNT.SETUP_TYPE.PLAID) {
+        Navigation.navigate(ROUTES.SETTINGS_ADD_US_BANK_ACCOUNT.getRoute(personalBankAccount?.currentPage));
+        return;
+    }
+
+    Navigation.navigate(ROUTES.SETTINGS_ADD_BANK_ACCOUNT.getRoute(Navigation.getActiveRoute()));
 }
 
 /**
@@ -349,6 +382,10 @@ function clearOnfidoToken() {
 
 function updateAddPersonalBankAccountDraft(bankData: Partial<PersonalBankAccountForm>) {
     Onyx.merge(ONYXKEYS.FORMS.PERSONAL_BANK_ACCOUNT_FORM_DRAFT, bankData);
+}
+
+function updatePersonalBankAccountCurrentPage(currentPage: string) {
+    Onyx.merge(ONYXKEYS.PERSONAL_BANK_ACCOUNT, {currentPage});
 }
 
 /**
@@ -1477,7 +1514,7 @@ function validatePlaidSelection(values: FormOnyxValues<AccountFormValues>, trans
     return errorFields;
 }
 
-function fetchCorpayFields(bankCountry: string, bankCurrency?: string, isWithdrawal?: boolean, isBusinessBankAccount?: boolean) {
+function fetchCorpayFields(bankCountry: string, bankCurrency?: string, isWithdrawal?: boolean, isBusinessBankAccount?: boolean, options: {preserveExistingDraft?: boolean} = {}) {
     API.write(
         WRITE_COMMANDS.GET_CORPAY_BANK_ACCOUNT_FIELDS,
         {countryISO: bankCountry, currency: bankCurrency, isWithdrawal, isBusinessBankAccount},
@@ -1491,7 +1528,7 @@ function fetchCorpayFields(bankCountry: string, bankCurrency?: string, isWithdra
                     },
                 },
                 {
-                    onyxMethod: Onyx.METHOD.SET,
+                    onyxMethod: options.preserveExistingDraft ? Onyx.METHOD.MERGE : Onyx.METHOD.SET,
                     key: ONYXKEYS.FORMS.INTERNATIONAL_BANK_ACCOUNT_FORM_DRAFT,
                     value: {
                         bankCountry,
@@ -1875,6 +1912,7 @@ export {
     addPersonalBankAccount,
     clearOnfidoToken,
     clearPersonalBankAccount,
+    clearInternationalBankAccount,
     setPersonalBankAccountContinueKYCOnSuccess,
     resetPersonalBankAccountForUpdate,
     setPlaidEvent,
@@ -1885,6 +1923,7 @@ export {
     deletePaymentBankAccount,
     handlePlaidError,
     openPersonalBankAccountSetupView,
+    openWalletPersonalBankAccountSetup,
     openReimbursementAccountPage,
     updateBeneficialOwnersForBankAccount,
     updateCompanyInformationForBankAccount,
@@ -1895,6 +1934,7 @@ export {
     setReimbursementAccountLoading,
     openPersonalBankAccountSetupWithPlaid,
     updateAddPersonalBankAccountDraft,
+    updatePersonalBankAccountCurrentPage,
     clearPersonalBankAccountSetupType,
     validatePlaidSelection,
     fetchCorpayFields,

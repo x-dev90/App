@@ -1,4 +1,4 @@
-import {clearPersonalBankAccount, connectBankAccountWithPlaid, openPersonalBankAccountSetupView} from '@libs/actions/BankAccounts';
+import {clearPersonalBankAccount, connectBankAccountWithPlaid, fetchCorpayFields, openPersonalBankAccountSetupView, openWalletPersonalBankAccountSetup} from '@libs/actions/BankAccounts';
 import {WRITE_COMMANDS} from '@libs/API/types';
 import Navigation from '@libs/Navigation/Navigation';
 
@@ -173,6 +173,46 @@ describe('actions/BankAccounts', () => {
             await waitForBatchedUpdates();
 
             expect(Navigation.navigate).toHaveBeenCalledWith(ROUTES.SETTINGS_ADD_US_BANK_ACCOUNT.getRoute());
+        });
+    });
+
+    describe('openWalletPersonalBankAccountSetup', () => {
+        test('resumes the exact saved US page without clearing the draft', async () => {
+            const personalBankAccount = {
+                source: CONST.BANK_ACCOUNT.SOURCE.WALLET,
+                currentPage: CONST.ADD_PERSONAL_BANK_ACCOUNT.SUB_PAGE_NAMES.PHONE_NUMBER,
+            };
+            const personalDraft = {
+                setupType: CONST.BANK_ACCOUNT.SETUP_TYPE.MANUAL,
+                routingNumber: '123456789',
+                accountNumber: '1234',
+            };
+            await Onyx.set(ONYXKEYS.PERSONAL_BANK_ACCOUNT, personalBankAccount);
+            await Onyx.set(ONYXKEYS.FORMS.PERSONAL_BANK_ACCOUNT_FORM_DRAFT, personalDraft);
+
+            openWalletPersonalBankAccountSetup({
+                personalBankAccount,
+                personalDraft: personalDraft as Parameters<typeof openWalletPersonalBankAccountSetup>[0]['personalDraft'],
+                internationalDraft: undefined,
+            });
+
+            expect(Navigation.navigate).toHaveBeenCalledWith(ROUTES.SETTINGS_ADD_US_BANK_ACCOUNT.getRoute(CONST.ADD_PERSONAL_BANK_ACCOUNT.SUB_PAGE_NAMES.PHONE_NUMBER));
+            expect(await getOnyxValue(ONYXKEYS.FORMS.PERSONAL_BANK_ACCOUNT_FORM_DRAFT)).toEqual(personalDraft);
+        });
+
+        test('preserves international values when Corpay fields are refreshed for resume', async () => {
+            await Onyx.set(ONYXKEYS.FORMS.INTERNATIONAL_BANK_ACCOUNT_FORM_DRAFT, {
+                bankCountry: 'GB',
+                bankCurrency: 'GBP',
+                accountNumber: '12345678',
+            });
+
+            fetchCorpayFields('GB', 'GBP', false, false, {preserveExistingDraft: true});
+            await waitForBatchedUpdates();
+
+            expect(await getOnyxValue(ONYXKEYS.FORMS.INTERNATIONAL_BANK_ACCOUNT_FORM_DRAFT)).toEqual(
+                expect.objectContaining({bankCountry: 'GB', bankCurrency: 'GBP', accountNumber: '12345678'}),
+            );
         });
     });
 
