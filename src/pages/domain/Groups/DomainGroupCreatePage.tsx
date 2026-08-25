@@ -9,10 +9,12 @@ import Text from '@components/Text';
 import TextInput from '@components/TextInput';
 
 import useConfirmModal from '@hooks/useConfirmModal';
+import useDomainCardFeedEligibility from '@hooks/useDomainCardFeedEligibility';
 import useLocalize from '@hooks/useLocalize';
 import useOnyx from '@hooks/useOnyx';
 import useThemeStyles from '@hooks/useThemeStyles';
 
+import {canEnableCardPreferredWorkspace} from '@libs/DomainUtils';
 import {addErrorMessage} from '@libs/ErrorUtils';
 
 import Navigation from '@navigation/Navigation';
@@ -61,13 +63,14 @@ function DomainGroupCreatePage({route}: DomainGroupCreatePageProps) {
         selector: defaultSecurityGroupIDSelector,
     });
     const [adminPolicies] = useOnyx(ONYXKEYS.COLLECTION.POLICY, {selector: createAdminPoliciesSelector()});
-    const [domainCardSettings] = useOnyx(`${ONYXKEYS.COLLECTION.PRIVATE_EXPENSIFY_CARD_SETTINGS}${domainAccountID}`);
-    const isDomainUsingExpensifyCard = !!domainCardSettings;
+    const {hasEligibleCardFeed, isLoading: isCardFeedEligibilityLoading} = useDomainCardFeedEligibility(domainAccountID);
 
     const firstAdminPolicy = Object.values(adminPolicies ?? {})
         .sort((a, b) => localeCompare(a?.created ?? '', b?.created ?? ''))
         .at(0);
     const hasAdminPolicies = !!firstAdminPolicy;
+    const canEnableCardPreferredWorkspaceToggle = canEnableCardPreferredWorkspace(preferredWorkspace, hasEligibleCardFeed);
+    const isCardPreferredWorkspaceActive = expensifyCardPreferredWorkspace && canEnableCardPreferredWorkspaceToggle;
 
     useEffect(() => {
         return () => {
@@ -112,7 +115,7 @@ function DomainGroupCreatePage({route}: DomainGroupCreatePageProps) {
                                 enableStrictPolicyRules: strictlyEnforceWorkspaceRules,
                                 enableRestrictedPrimaryPolicy: preferredWorkspace,
                                 restrictedPrimaryPolicyID: preferredPolicyID ?? firstAdminPolicy?.id,
-                                overridePreferredPolicyWithCardPolicy: expensifyCardPreferredWorkspace,
+                                overridePreferredPolicyWithCardPolicy: isCardPreferredWorkspaceActive,
                             },
                             defaultGroupForNewMembers,
                             defaultSecurityGroupID,
@@ -215,16 +218,20 @@ function DomainGroupCreatePage({route}: DomainGroupCreatePageProps) {
                         title={translate('domain.groups.expensifyCardPreferredWorkspace')}
                         subtitle={translate('domain.groups.expensifyCardPreferredWorkspaceDescription')}
                         switchAccessibilityLabel={translate('domain.groups.expensifyCardPreferredWorkspace')}
-                        isActive={expensifyCardPreferredWorkspace}
-                        disabled={!preferredWorkspace || !isDomainUsingExpensifyCard}
-                        disabledAction={() => {
-                            showConfirmModal({
-                                title: translate('workspace.distanceRates.oopsNotSoFast'),
-                                prompt: translate('domain.groups.expensifyCardPreferredWorkspaceDisabledMessage'),
-                                confirmText: translate('common.buttonConfirm'),
-                                shouldShowCancelButton: false,
-                            });
-                        }}
+                        isActive={isCardPreferredWorkspaceActive}
+                        disabled={!canEnableCardPreferredWorkspaceToggle}
+                        disabledAction={
+                            isCardFeedEligibilityLoading
+                                ? undefined
+                                : () => {
+                                      showConfirmModal({
+                                          title: translate('workspace.distanceRates.oopsNotSoFast'),
+                                          prompt: translate('domain.groups.expensifyCardPreferredWorkspaceDisabledMessage'),
+                                          confirmText: translate('common.buttonConfirm'),
+                                          shouldShowCancelButton: false,
+                                      });
+                                  }
+                        }
                         onToggle={setExpensifyCardPreferredWorkspace}
                         wrapperStyle={[styles.ph5, styles.mv3]}
                         shouldPlaceSubtitleBelowSwitch

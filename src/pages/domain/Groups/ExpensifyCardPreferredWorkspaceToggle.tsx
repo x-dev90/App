@@ -1,7 +1,10 @@
 import useConfirmModal from '@hooks/useConfirmModal';
+import useDomainCardFeedEligibility from '@hooks/useDomainCardFeedEligibility';
 import useLocalize from '@hooks/useLocalize';
 import useOnyx from '@hooks/useOnyx';
 import useThemeStyles from '@hooks/useThemeStyles';
+
+import {canEnableCardPreferredWorkspace} from '@libs/DomainUtils';
 
 import ToggleSettingOptionRow from '@pages/workspace/workflows/ToggleSettingsOptionRow';
 
@@ -40,11 +43,11 @@ function ExpensifyCardPreferredWorkspaceToggle({domainAccountID, groupID}: Expen
     const preferredPolicyID = group?.restrictedPrimaryPolicyID;
     const isPreferredPolicyEnabled = !!group?.enableRestrictedPrimaryPolicy && !!preferredPolicyID;
 
-    const [domainCardSettings] = useOnyx(`${ONYXKEYS.COLLECTION.PRIVATE_EXPENSIFY_CARD_SETTINGS}${domainAccountID}`);
-    const isDomainUsingExpensifyCard = !!domainCardSettings;
+    const {hasEligibleCardFeed, isLoading: isCardFeedEligibilityLoading} = useDomainCardFeedEligibility(domainAccountID);
 
     const isActive = !!group?.overridePreferredPolicyWithCardPolicy;
-    const isDisabled = (!isPreferredPolicyEnabled || !isDomainUsingExpensifyCard) && !isActive;
+    const canEnable = canEnableCardPreferredWorkspace(isPreferredPolicyEnabled, hasEligibleCardFeed);
+    const isDisabled = !canEnable && !isActive;
 
     return (
         <View style={styles.mv3}>
@@ -54,14 +57,18 @@ function ExpensifyCardPreferredWorkspaceToggle({domainAccountID, groupID}: Expen
                 switchAccessibilityLabel={translate('domain.groups.expensifyCardPreferredWorkspace')}
                 shouldPlaceSubtitleBelowSwitch
                 disabled={isDisabled}
-                disabledAction={() => {
-                    showConfirmModal({
-                        title: translate('workspace.distanceRates.oopsNotSoFast'),
-                        prompt: translate('domain.groups.expensifyCardPreferredWorkspaceDisabledMessage'),
-                        confirmText: translate('common.buttonConfirm'),
-                        shouldShowCancelButton: false,
-                    });
-                }}
+                disabledAction={
+                    isCardFeedEligibilityLoading
+                        ? undefined
+                        : () => {
+                              showConfirmModal({
+                                  title: translate('workspace.distanceRates.oopsNotSoFast'),
+                                  prompt: translate('domain.groups.expensifyCardPreferredWorkspaceDisabledMessage'),
+                                  confirmText: translate('common.buttonConfirm'),
+                                  shouldShowCancelButton: false,
+                              });
+                          }
+                }
                 isActive={isActive}
                 onToggle={(enabled) => {
                     if (!group) {

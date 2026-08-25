@@ -1,5 +1,5 @@
 import {getExpensifyCardFeedsForDisplay} from '@libs/CardFeedUtils';
-import {hasAssignedCardMatching, isActiveCard, isCard, isCardHiddenFromSearch, isCSVFeedOrExpensifyCard, isExpensifyCard, isPersonalCard} from '@libs/CardUtils';
+import {getOriginalCompanyFeeds, hasAssignedCardMatching, isActiveCard, isCard, isCardHiddenFromSearch, isCSVFeedOrExpensifyCard, isExpensifyCard, isPersonalCard} from '@libs/CardUtils';
 import {filterObject} from '@libs/ObjectUtils';
 
 import CONST from '@src/CONST';
@@ -109,6 +109,9 @@ const isExpensifyCardContinuousReconciliationEnabledSelector = (value: boolean |
 /** Picks the shared company card custom names from a domain's card feeds, avoiding a subscription to the entire CardFeeds object. */
 const companyCardCustomNamesSelector = (cardFeeds: OnyxEntry<CardFeeds>) => cardFeeds?.settings?.companyCardCustomNames;
 
+/** Returns whether a domain has at least one company card feed that is neither pending nor being deleted. */
+const hasCompanyCardFeedSelector = (cardFeeds: OnyxEntry<CardFeeds>): boolean => Object.keys(getOriginalCompanyFeeds(cardFeeds)).length > 0;
+
 /**
  * Determines whether a workspace has at least one active Expensify Card.
  * Intended to run against a single WorkspaceCardsList entry subscribed by its exact
@@ -130,5 +133,6 @@ export {
     getBankLinkedPersonalCards,
     isExpensifyCardContinuousReconciliationEnabledSelector,
     companyCardCustomNamesSelector,
+    hasCompanyCardFeedSelector,
     hasIssuedExpensifyCardSelector,
 };

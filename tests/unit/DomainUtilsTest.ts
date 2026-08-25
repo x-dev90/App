@@ -1,4 +1,5 @@
 import {
+    canEnableCardPreferredWorkspace,
     getMemberCustomRowProps,
     hasDomainAdminsErrors,
     hasDomainAdminsSettingsErrors,
@@ -15,6 +16,17 @@ import type DomainPendingAction from '@src/types/onyx/DomainPendingActions';
 
 const adminID = 1;
 describe('DomainUtils', () => {
+    describe('canEnableCardPreferredWorkspace', () => {
+        test.each([
+            {hasEligibleCardFeed: false, isPreferredWorkspaceEnabled: false, expected: false},
+            {hasEligibleCardFeed: true, isPreferredWorkspaceEnabled: false, expected: false},
+            {hasEligibleCardFeed: false, isPreferredWorkspaceEnabled: true, expected: false},
+            {hasEligibleCardFeed: true, isPreferredWorkspaceEnabled: true, expected: true},
+        ])('returns $expected when preferred workspace is $isPreferredWorkspaceEnabled and an eligible card feed is $hasEligibleCardFeed', (testCase) => {
+            expect(canEnableCardPreferredWorkspace(testCase.isPreferredWorkspaceEnabled, testCase.hasEligibleCardFeed)).toBe(testCase.expected);
+        });
+    });
+
     describe('hasDomainErrors', () => {
         it('should return false when domainErrors is undefined', () => {
             expect(hasDomainErrors(undefined)).toBe(false);

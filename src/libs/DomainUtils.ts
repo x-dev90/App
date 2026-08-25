@@ -6,6 +6,10 @@ import {isEmptyObject} from '@src/types/utils/EmptyObject';
 
 import {getLatestError} from './ErrorUtils';
 
+function canEnableCardPreferredWorkspace(isPreferredWorkspaceEnabled: boolean, hasEligibleCardFeed: boolean): boolean {
+    return isPreferredWorkspaceEnabled && hasEligibleCardFeed;
+}
+
 /**
  * Checks if a security group has detail-level errors (shown on the group details page).
  */
@@ -121,4 +125,5 @@ export {
     hasDomainGroupsErrors,
     hasDomainGroupDetailsErrors,
     getMemberCustomRowProps,
+    canEnableCardPreferredWorkspace,
 };

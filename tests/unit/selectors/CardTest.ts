@@ -1,13 +1,20 @@
 import {isCard, isCardPendingActivate, isCardPendingIssue, isCardWithPotentialFraud, isExpensifyCard} from '@libs/CardUtils';
 
 import CONST from '@src/CONST';
-import type {Card, CardList, WorkspaceCardsList} from '@src/types/onyx';
+import type {Card, CardFeeds, CardList, WorkspaceCardsList} from '@src/types/onyx';
 
 import type {OnyxEntry} from 'react-native-onyx';
 import type {ValueOf} from 'type-fest';
 
 /* eslint-disable @typescript-eslint/naming-convention */
-import {areAllExpensifyCardsShipped, defaultExpensifyCardSelector, filterCardsHiddenFromSearch, filterOutPersonalCards, hasIssuedExpensifyCardSelector} from '@selectors/Card';
+import {
+    areAllExpensifyCardsShipped,
+    defaultExpensifyCardSelector,
+    filterCardsHiddenFromSearch,
+    filterOutPersonalCards,
+    hasCompanyCardFeedSelector,
+    hasIssuedExpensifyCardSelector,
+} from '@selectors/Card';
 
 import createRandomCard, {createRandomCompanyCard, createRandomExpensifyCard} from '../../utils/collections/card';
 import createMock from '../../utils/createMock';
@@ -925,5 +932,63 @@ describe('hasIssuedExpensifyCardSelector', () => {
         Object.assign(cardsList, {cardList: {'9999': 'Card to assign'}});
 
         expect(hasIssuedExpensifyCardSelector(cardsList)).toBe(true);
+    });
+});
+
+describe('hasCompanyCardFeedSelector', () => {
+    it('returns false when domain card feeds are missing or empty', () => {
+        expect(hasCompanyCardFeedSelector(undefined)).toBe(false);
+        expect(hasCompanyCardFeedSelector({settings: {}})).toBe(false);
+    });
+
+    it('returns true when a completed company card feed exists without assigned cards', () => {
+        const cardFeeds = createMock<CardFeeds>({
+            settings: {
+                companyCards: {
+                    [CONST.COMPANY_CARD.FEED_BANK_NAME.CSV]: {pending: false},
+                },
+            },
+        });
+
+        expect(hasCompanyCardFeedSelector(cardFeeds)).toBe(true);
+    });
+
+    it('returns false when only an Expensify Card feed exists', () => {
+        const cardFeeds = createMock<CardFeeds>({
+            settings: {
+                companyCards: {
+                    [CONST.EXPENSIFY_CARD.BANK]: {pending: false},
+                },
+            },
+        });
+
+        expect(hasCompanyCardFeedSelector(cardFeeds)).toBe(false);
+    });
+
+    it('returns false when company card feeds are pending or being deleted', () => {
+        const cardFeeds = createMock<CardFeeds>({
+            settings: {
+                companyCards: {
+                    [CONST.COMPANY_CARD.FEED_BANK_NAME.CSV]: {pending: true},
+                    [CONST.COMPANY_CARD.FEED_BANK_NAME.VISA]: {pendingAction: CONST.RED_BRICK_ROAD_PENDING_ACTION.DELETE},
+                },
+            },
+        });
+
+        expect(hasCompanyCardFeedSelector(cardFeeds)).toBe(false);
+    });
+
+    it('returns true when at least one feed qualifies among invalid feeds', () => {
+        const cardFeeds = createMock<CardFeeds>({
+            settings: {
+                companyCards: {
+                    [CONST.COMPANY_CARD.FEED_BANK_NAME.CSV]: {pending: true},
+                    [CONST.COMPANY_CARD.FEED_BANK_NAME.VISA]: {pending: false},
+                    [CONST.EXPENSIFY_CARD.BANK]: {pending: false},
+                },
+            },
+        });
+
+        expect(hasCompanyCardFeedSelector(cardFeeds)).toBe(true);
     });
 });
