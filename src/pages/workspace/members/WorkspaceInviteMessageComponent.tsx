@@ -30,8 +30,10 @@ import {
     getDefaultApprover,
     getMemberAccountIDsForWorkspace,
     goBackFromInvalidPolicy,
+    hasDynamicExternalWorkflow,
     isControlPolicy,
     isSubmitPolicy,
+    shouldHideDynamicExternalWorkflowPeople,
     tryNavigateToSubmitWorkspaceUpgrade,
 } from '@libs/PolicyUtils';
 import {getAllPolicyExpenseChatReportActions} from '@libs/ReportUtils';
@@ -117,7 +119,8 @@ function WorkspaceInviteMessageComponent({
     const approverDetails = usePersonalDetailByLogin(workspaceInviteApproverDraft);
 
     const isControl = isControlPolicy(policy);
-    const shouldShowApproverRow = isControl && policy?.approvalMode === CONST.POLICY.APPROVAL_MODE.ADVANCED && policy?.areWorkflowsEnabled;
+    const isDEWApproverAvailable = hasDynamicExternalWorkflow(policy) && !shouldHideDynamicExternalWorkflowPeople(policy);
+    const shouldShowApproverRow = isControl && !!policy?.areWorkflowsEnabled && (policy?.approvalMode === CONST.POLICY.APPROVAL_MODE.ADVANCED || isDEWApproverAvailable);
 
     const isApproverValid = !!workspaceInviteApproverDraft && workspaceInviteApproverDraft in (policy?.employeeList ?? {});
     const validatedApprover = isApproverValid ? workspaceInviteApproverDraft : undefined;

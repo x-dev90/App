@@ -9,7 +9,7 @@ import {setWorkspaceInviteApproverDraft} from '@libs/actions/Policy/Member';
 import Navigation from '@libs/Navigation/Navigation';
 import type {PlatformStackScreenProps} from '@libs/Navigation/PlatformStackNavigation/types';
 import type {SettingsNavigatorParamList} from '@libs/Navigation/types';
-import {getDefaultApprover, getMemberAccountIDsForWorkspace, goBackFromInvalidPolicy} from '@libs/PolicyUtils';
+import {getDefaultApprover, getMemberAccountIDsForWorkspace, goBackFromInvalidPolicy, shouldHideDynamicExternalWorkflowPeople} from '@libs/PolicyUtils';
 
 import CONST from '@src/CONST';
 import ONYXKEYS from '@src/ONYXKEYS';
@@ -128,6 +128,7 @@ function WorkspaceInviteMessageApproverPage({policy, personalDetails, isLoadingR
                 allApprovers={allApprovers}
                 onSelectApprover={handleOnSelectApprover}
                 shouldRequirePolicyAdmin={false}
+                shouldShowNotFoundView={!isLoadingReportData && shouldHideDynamicExternalWorkflowPeople(policy)}
             />
         </AccessOrNotFoundWrapper>
     );
