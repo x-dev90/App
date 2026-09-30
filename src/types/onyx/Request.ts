@@ -101,6 +101,9 @@ type RequestDataBase<TKey extends OnyxKey> = {
 
     /** The client-side monotonically-increasing index of this request (seeded with Date.now() at module load). Not to be confused with the server's response.requestID. */
     requestIndex?: number;
+
+    /** Owns field-level transaction edits until this request's deferred Onyx result is flushed. */
+    transactionEditRequestID?: string;
 };
 
 /** Model of overall requests sent to the API */

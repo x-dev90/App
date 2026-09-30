@@ -2,6 +2,7 @@ import {SIDE_EFFECT_REQUEST_COMMANDS, WRITE_COMMANDS} from '@libs/API/types';
 import Log from '@libs/Log';
 import PusherUtils from '@libs/PusherUtils';
 import {trackExpenseApiError} from '@libs/telemetry/trackExpenseCreationError';
+import {finalizeTransactionEdits, getTransactionEditPersistencePromise, protectTransactionLifecycleUpdates, protectTransactionUpdates} from '@libs/TransactionEditManager';
 
 import CONST from '@src/CONST';
 import ONYXKEYS from '@src/ONYXKEYS';
@@ -71,13 +72,14 @@ function applyHTTPSOnyxUpdates<TKey extends OnyxKey>(request: Request<TKey>, res
     // First apply any onyx data updates that are being sent back from the API. We wait for this to complete and then
     // apply successData or failureData. This ensures that we do not update any pending, loading, or other UI states contained
     // in successData/failureData until after the component has received and API data.
-    const onyxDataUpdatePromise = response.onyxData ? updateHandler(response.onyxData) : Promise.resolve();
+    const protectedOnyxData = protectTransactionUpdates(request, response, response.onyxData);
+    const onyxDataUpdatePromise = protectedOnyxData ? updateHandler(protectedOnyxData) : Promise.resolve();
 
     return onyxDataUpdatePromise
         .then(() => {
             // Handle the request's success/failure data (client-side data)
             if (response.jsonCode === 200 && request.successData) {
-                return updateHandler(request.successData);
+                return updateHandler(protectTransactionLifecycleUpdates(request.successData) ?? []);
             }
             if (response.jsonCode !== 200 && request.failureData) {
                 // 460 jsonCode in Expensify world means "admin required".
@@ -96,16 +98,17 @@ function applyHTTPSOnyxUpdates<TKey extends OnyxKey>(request: Request<TKey>, res
                     requestData: request.data,
                 });
 
-                return updateHandler(request.failureData);
+                return updateHandler(protectTransactionLifecycleUpdates(request.failureData) ?? []);
             }
             return Promise.resolve();
         })
         .then(() => {
             if (request.finallyData) {
-                return updateHandler(request.finallyData);
+                return updateHandler(protectTransactionLifecycleUpdates(request.finallyData) ?? []);
             }
             return Promise.resolve();
         })
+        .then(() => getTransactionEditPersistencePromise())
         .then(() => {
             Log.info('[OnyxUpdateManager] Done applying HTTPS update', false, {lastUpdateID});
             return Promise.resolve(response);
@@ -118,7 +121,11 @@ function applyPusherOnyxUpdates<TKey extends OnyxKey>(updates: Array<OnyxUpdateE
     });
 
     const applyPromise = updates
-        .reduce((promise, update) => promise.then(() => PusherUtils.triggerMultiEventHandler(update.eventType, update.data)), pusherEventsPromise)
+        .reduce(
+            (promise, update) => promise.then(() => PusherUtils.triggerMultiEventHandler(update.eventType, protectTransactionUpdates(undefined, undefined, update.data) ?? update.data)),
+            pusherEventsPromise,
+        )
+        .then(() => getTransactionEditPersistencePromise())
         .then(() => {
             Log.info('[OnyxUpdateManager] Done applying Pusher update', false, {lastUpdateID});
         });
@@ -134,7 +141,11 @@ function applyAirshipOnyxUpdates<TKey extends OnyxKey>(updates: Array<OnyxUpdate
     });
 
     const applyPromise = updates
-        .reduce((promise, update) => promise.then(() => Onyx.update(update.data as Array<OnyxUpdate<TKey>>)), airshipEventsPromise)
+        .reduce(
+            (promise, update) => promise.then(() => Onyx.update((protectTransactionUpdates(undefined, undefined, update.data) ?? update.data) as Array<OnyxUpdate<TKey>>)),
+            airshipEventsPromise,
+        )
+        .then(() => getTransactionEditPersistencePromise())
         .then(() => {
             Log.info('[OnyxUpdateManager] Done applying Airship updates', false, {lastUpdateID});
         });
@@ -194,7 +205,14 @@ function apply<TKey extends OnyxKey>({lastUpdateID, previousUpdateID, type, requ
 
             // We use a spread here instead of delete because we don't want to change the response for other middlewares
             const {onyxData, ...responseWithoutOnyxData} = response;
-            return applyHTTPSOnyxUpdates(request, responseWithoutOnyxData, Number(lastUpdateID));
+            const applyPromise = applyHTTPSOnyxUpdates(request, responseWithoutOnyxData, Number(lastUpdateID));
+            if (request.data?.apiRequestType === CONST.API_REQUEST_TYPE.WRITE) {
+                applyPromise
+                    .then(() => getCurrentFlushPromise())
+                    .then(() => finalizeTransactionEdits(request))
+                    .catch(() => {});
+            }
+            return applyPromise;
         }
 
         return Promise.resolve(response);
@@ -278,7 +296,13 @@ function apply<TKey extends OnyxKey>({lastUpdateID, previousUpdateID, type, requ
             if (shouldAdvanceLastUpdateID) {
                 lastUpdateIDPendingWriteFlush = Math.max(lastUpdateIDPendingWriteFlush, Number(lastUpdateID));
             }
-            advanceLastUpdateIDAfterApply(applyPromise.then(() => getCurrentFlushPromise())).catch(() => {
+            advanceLastUpdateIDAfterApply(
+                applyPromise.then(() =>
+                    getCurrentFlushPromise().then(() => {
+                        finalizeTransactionEdits(request);
+                    }),
+                ),
+            ).catch(() => {
                 // The staged updates never applied, so stop counting them as pending — the next gap check
                 // then sees the missing range against the persisted watermark and triggers recovery.
                 lastUpdateIDPendingWriteFlush = 0;

@@ -4,6 +4,7 @@ import {getIsOffline} from '@libs/NetworkState';
 import Pusher from '@libs/Pusher';
 import {processWithMiddleware} from '@libs/Request';
 import sanitizeLogParams from '@libs/sanitizeLogParams';
+import {registerTransactionEdits} from '@libs/TransactionEditManager';
 
 import {getAll} from '@userActions/PersistedRequests';
 
@@ -49,11 +50,6 @@ function prepareRequest<TCommand extends ApiCommand, TKey extends OnyxKey>(
 
     const {optimisticData, successData, failureData, ...onyxDataWithoutOptimisticData} = onyxData;
 
-    if (optimisticData && shouldApplyOptimisticData) {
-        Log.info('[API] Applying optimistic data', false, {command, type}, undefined, optimisticData);
-        Onyx.update(optimisticData);
-    }
-
     const isWriteRequest = type === CONST.API_REQUEST_TYPE.WRITE;
     let pusherSocketID = Pusher.getPusherSocketID();
     if (pusherSocketID === 'null' && isWriteRequest) {
@@ -82,6 +78,14 @@ function prepareRequest<TCommand extends ApiCommand, TKey extends OnyxKey>(
         failureData,
         ...conflictResolver,
     };
+
+    if (optimisticData && shouldApplyOptimisticData) {
+        // Register field ownership before publishing the optimistic value. Otherwise a response that
+        // lands between these operations can replace the edit with an older transaction snapshot.
+        registerTransactionEdits(request, optimisticData);
+        Log.info('[API] Applying optimistic data', false, {command, type}, undefined, optimisticData);
+        Onyx.update(optimisticData);
+    }
 
     if (isWriteRequest) {
         // This should be removed once we are no longer using deprecatedAPI https://github.com/Expensify/Expensify/issues/215650

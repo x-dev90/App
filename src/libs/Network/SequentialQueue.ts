@@ -20,6 +20,7 @@ import {getIsOffline as isOfflineNetwork, subscribe as subscribeToNetworkState} 
 import {processWithMiddleware} from '@libs/Request';
 import RequestThrottle from '@libs/RequestThrottle';
 import {logReceiptEnqueued, logReceiptGaveUp, RECEIPT_BEARING_COMMANDS} from '@libs/telemetry/ReceiptObservability';
+import {discardTransactionEdits, transferTransactionEditOwnership} from '@libs/TransactionEditManager';
 
 import CONST from '@src/CONST';
 import ONYXKEYS from '@src/ONYXKEYS';
@@ -855,6 +856,35 @@ async function handleConflictActions<TKey extends OnyxKey>(conflictAction: Confl
     }
 }
 
+function discardReplacedTransactionEditOwners(conflictAction: ConflictData, currentRequests: AnyRequest[], newRequest: AnyRequest) {
+    const discarded: string[] = [];
+    if (conflictAction.type === 'replace') {
+        const owner = currentRequests.at(conflictAction.index)?.transactionEditRequestID;
+        if (conflictAction.request && !conflictAction.request.transactionEditRequestID) {
+            conflictAction.request.transactionEditRequestID = newRequest.transactionEditRequestID;
+        }
+        const replacementOwner = conflictAction.request?.transactionEditRequestID ?? newRequest.transactionEditRequestID;
+        if (conflictAction.request?.transactionEditRequestID) {
+            transferTransactionEditOwnership(newRequest.transactionEditRequestID, conflictAction.request.transactionEditRequestID);
+        } else if (owner && owner !== replacementOwner) {
+            discarded.push(owner);
+        }
+    } else if (conflictAction.type === 'delete') {
+        for (const index of conflictAction.indices) {
+            const owner = currentRequests.at(index)?.transactionEditRequestID;
+            if (owner) {
+                discarded.push(owner);
+            }
+        }
+        if (conflictAction.nextAction) {
+            discardReplacedTransactionEditOwners(conflictAction.nextAction, currentRequests, newRequest);
+        }
+    } else if (conflictAction.type === 'noAction' && newRequest.transactionEditRequestID) {
+        discarded.push(newRequest.transactionEditRequestID);
+    }
+    discardTransactionEdits(discarded);
+}
+
 async function push<TKey extends OnyxKey>(newRequest: OnyxRequest<TKey>): Promise<void> {
     const currentRequests = getAllPersistedRequests();
     Log.info('[SequentialQueue] push() called', false, {
@@ -893,6 +923,7 @@ async function push<TKey extends OnyxKey>(newRequest: OnyxRequest<TKey>): Promis
         // don't try to serialize a function.
         // eslint-disable-next-line no-param-reassign
         delete newRequest.checkAndFixConflictingRequest;
+        discardReplacedTransactionEditOwners(conflictAction, currentRequests, newRequest as AnyRequest);
         persistencePromise = handleConflictActions(conflictAction, newRequest);
     } else {
         persistencePromise = savePersistedRequest(newRequest);

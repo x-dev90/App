@@ -7,6 +7,7 @@ import type {OnyxKey} from 'react-native-onyx';
 import type Middleware from './Middleware/types';
 
 import {getCurrentFlushPromise} from './actions/QueuedOnyxUpdates';
+import {READ_COMMANDS, SIDE_EFFECT_REQUEST_COMMANDS} from './API/types';
 import isStartupNetworkRequest from './AppStartupNetworkRequest';
 import HttpUtils from './HttpUtils';
 import Log from './Log';
@@ -16,6 +17,7 @@ import {cancelSpan, endSpanWithAttributes} from './telemetry/activeSpans';
 import getRequestPhaseSpanNames, {getNextRequestPhaseAttempt} from './telemetry/measuredRequestPhaseCommands';
 import startRequestPhaseSpan, {getRequestPhaseSpanId} from './telemetry/startRequestPhaseSpan';
 import trackStartupDataRender from './telemetry/trackStartupDataRender';
+import {getFreshnessGeneration} from './TransactionEditManager';
 
 let middlewares: Middleware[] = [];
 
@@ -25,7 +27,19 @@ const latestApplyAttemptByRequest = new WeakMap<WeakKey, number>();
 function makeXHR<TKey extends OnyxKey>(request: Request<TKey>): Promise<Response<TKey> | void> {
     const finalParameters = enhanceParameters(request.command, request?.data ?? {});
     return hasReadRequiredDataFromStorage().then((): Promise<Response<TKey> | void> => {
-        return HttpUtils.xhr(request.command, finalParameters, request.type, request.shouldUseSecure, request.initiatedOffline);
+        const isAuthenticationRead = request.command === READ_COMMANDS.SIGN_IN_WITH_SHORT_LIVED_AUTH_TOKEN || request.command === READ_COMMANDS.SIGN_IN_WITH_SUPPORT_AUTH_TOKEN;
+        const isFullRecovery = request.command === SIDE_EFFECT_REQUEST_COMMANDS.RECONNECT_APP && !request.data?.updateIDFrom;
+        const shouldRequireFreshSnapshot = (!isAuthenticationRead && request.data?.apiRequestType === CONST.API_REQUEST_TYPE.READ) || isFullRecovery;
+        const dispatchedGeneration = getFreshnessGeneration();
+        return HttpUtils.xhr(request.command, finalParameters, request.type, request.shouldUseSecure, request.initiatedOffline).then((response) => {
+            if (!shouldRequireFreshSnapshot || dispatchedGeneration === getFreshnessGeneration()) {
+                return response;
+            }
+            Log.info('[API] Discarding a snapshot that crossed a transaction edit boundary and retrying it', false, {command: request.command});
+            // Retry before the response reaches any middleware, so neither its data nor its loading/error cleanup can be applied.
+            // Full recovery deliberately does not consult the paused WRITE queue; it may be the request needed to unpause it.
+            return makeXHR(request);
+        });
     });
 }
 
