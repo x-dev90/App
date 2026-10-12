@@ -73,6 +73,7 @@ import {getCleanUpTransactionThreadReportOnyxData} from './DeleteMoneyRequest';
 import {getAllReports, getIOUAndChatReportForIOUAction} from './index';
 import {getMoneyRequestParticipantsFromReport} from './MoneyRequest';
 import {getMoneyRequestInformation, getReportPreviewReportAction} from './MoneyRequestBuilder';
+import {getSplitSavePlan} from './SplitSavePlan';
 import {getDeleteTrackExpenseInformation} from './TrackExpense';
 import {getUpdateMoneyRequestParams} from './UpdateMoneyRequest';
 
@@ -165,24 +166,6 @@ function rescaleSnapshotGroupAmount<T extends OnyxTypes.Transaction>(transaction
         groupCurrency: groupSourceTransaction.groupCurrency,
         groupExchangeRate: groupSourceTransaction.groupExchangeRate,
     };
-}
-
-/**
- * Whether any of the given splits still lives on a report that hasn't been submitted yet.
- */
-function hasEditableSplitExpenseLeft(
-    splitExpenses: SplitExpense[],
-    allTransactionsList: OnyxCollection<OnyxTypes.Transaction>,
-    allReportsList: OnyxCollection<OnyxTypes.Report>,
-    searchReportsData: SearchResultDataType | undefined,
-): boolean {
-    return splitExpenses.some((expense) => {
-        const transactionKey = `${ONYXKEYS.COLLECTION.TRANSACTION}${expense.transactionID}` as const;
-        const liveReportID = allTransactionsList?.[transactionKey]?.reportID ?? searchReportsData?.[transactionKey]?.reportID ?? expense.reportID;
-        const reportKey = `${ONYXKEYS.COLLECTION.REPORT}${liveReportID}` as const;
-        const statusNum = allReportsList?.[reportKey]?.statusNum ?? searchReportsData?.[reportKey]?.statusNum ?? CONST.REPORT.STATUS_NUM.OPEN;
-        return statusNum < CONST.REPORT.STATUS_NUM.SUBMITTED;
-    });
 }
 
 function updateSplitTransactions({
@@ -305,8 +288,17 @@ function updateSplitTransactions({
 
     const isCreationOfSplits = allChildTransactions.length === 0;
     const currentSnapshotDataForSplits = allSnapshots?.[`${ONYXKEYS.COLLECTION.SNAPSHOT}${searchContext?.currentSearchHash}`]?.data;
-    const hasEditableSplitExpensesLeft = hasEditableSplitExpenseLeft(splitExpenses, allTransactionsList, allReportsList, currentSnapshotDataForSplits);
-    const isReverseSplitOperation = splitExpenses.length === 1 && allChildTransactions.length > 0 && hasEditableSplitExpensesLeft;
+    const splitSavePlan = getSplitSavePlan({
+        splitExpenses,
+        allChildTransactions,
+        allTransactionsList,
+        allReportsList,
+        searchData: currentSnapshotDataForSplits,
+        transactionViolations,
+        expenseReport,
+        originalTransactionID,
+    });
+    const {isReverseSplitOperation} = splitSavePlan;
 
     let splitThreadComments: OnyxTypes.ReportAction[] = [];
     let splitThreadReportAction: OnyxTypes.ReportAction | undefined;
@@ -357,9 +349,7 @@ function updateSplitTransactions({
                 merchant: split?.merchant ?? '',
                 transactionID: split.transactionID,
                 reportID: split.reportID,
-                comment: {
-                    comment: currentDescription,
-                },
+                comment: currentDescription,
                 reimbursable: split?.reimbursable,
                 billable: split?.billable,
                 taxCode: split?.taxCode,
@@ -844,7 +834,7 @@ function updateSplitTransactions({
         if (splitTransaction) {
             const transactionChanges = {
                 ...currentSplit,
-                comment: currentSplit?.comment?.comment,
+                comment: currentSplit?.comment,
                 customUnitRateID: currentSplit?.customUnitRateID ?? CONST.CUSTOM_UNITS.FAKE_P2P_ID,
             } as TransactionChanges;
             delete transactionChanges.reportID;
@@ -1876,67 +1866,6 @@ function updateSplitTransactions({
         });
         pushUpdatedReportPreviewActionToOnyxData();
 
-        // Skip only when the reverse split's restored transaction stays in expenseReportID — that
-        // report isn't becoming empty. If the surviving split lives in a different report (e.g. it
-        // was moved elsewhere), expenseReportID can still genuinely lose its last transaction.
-        const reverseSplitKeepsOriginalInThisReport = isReverseSplitOperation && splitExpenses.at(0)?.reportID === expenseReportID;
-        const isLastTransactionInReport =
-            !reverseSplitKeepsOriginalInThisReport && Object.values(allTransactionsList ?? {}).filter((itemTransaction) => itemTransaction?.reportID === expenseReportID).length === 1;
-        if (isLastTransactionInReport && expenseReportID) {
-            onyxData.optimisticData?.push({
-                onyxMethod: Onyx.METHOD.MERGE,
-                key: `${ONYXKEYS.COLLECTION.REPORT}${expenseReportID}`,
-                value: {
-                    reportID: null,
-                    pendingFields: {
-                        preview: CONST.RED_BRICK_ROAD_PENDING_ACTION.DELETE,
-                    },
-                },
-            });
-            onyxData.successData?.push({
-                onyxMethod: Onyx.METHOD.SET,
-                key: `${ONYXKEYS.COLLECTION.REPORT}${expenseReportID}`,
-                value: null,
-            });
-            onyxData.failureData?.push({
-                onyxMethod: Onyx.METHOD.MERGE,
-                key: `${ONYXKEYS.COLLECTION.REPORT}${expenseReportID}`,
-                value: {
-                    reportID: expenseReportID,
-                    pendingFields: null,
-                },
-            });
-            if (expenseReport?.parentReportID && expenseReport?.parentReportActionID) {
-                onyxData.optimisticData?.push({
-                    onyxMethod: Onyx.METHOD.MERGE,
-                    key: `${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${expenseReport?.parentReportID}`,
-                    value: {
-                        [expenseReport?.parentReportActionID]: {
-                            pendingAction: CONST.RED_BRICK_ROAD_PENDING_ACTION.DELETE,
-                        },
-                    },
-                });
-                onyxData.successData?.push({
-                    onyxMethod: Onyx.METHOD.MERGE,
-                    key: `${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${expenseReport?.parentReportID}`,
-                    value: {
-                        [expenseReport?.parentReportActionID]: {
-                            pendingAction: null,
-                        },
-                    },
-                });
-                onyxData.failureData?.push({
-                    onyxMethod: Onyx.METHOD.MERGE,
-                    key: `${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${expenseReport?.parentReportID}`,
-                    value: {
-                        [expenseReport?.parentReportActionID]: {
-                            pendingAction: null,
-                        },
-                    },
-                });
-            }
-        }
-
         const originalTransactionThreadReportID = splits.at(0)?.transactionThreadReportID;
         if (splitThreadComments.length > 0 && originalTransactionThreadReportID && splitTransactionThreadReportID) {
             const optimisticMovedComments: Record<string, OnyxTypes.ReportAction> = {};
@@ -1991,6 +1920,61 @@ function updateSplitTransactions({
         }
     }
 
+    if (splitSavePlan.willExpenseReportBecomeEmpty && expenseReportID) {
+        onyxData.optimisticData?.push({
+            onyxMethod: Onyx.METHOD.MERGE,
+            key: `${ONYXKEYS.COLLECTION.REPORT}${expenseReportID}`,
+            value: {
+                reportID: null,
+                pendingFields: {
+                    preview: CONST.RED_BRICK_ROAD_PENDING_ACTION.DELETE,
+                },
+            },
+        });
+        onyxData.successData?.push({
+            onyxMethod: Onyx.METHOD.SET,
+            key: `${ONYXKEYS.COLLECTION.REPORT}${expenseReportID}`,
+            value: null,
+        });
+        onyxData.failureData?.push({
+            onyxMethod: Onyx.METHOD.MERGE,
+            key: `${ONYXKEYS.COLLECTION.REPORT}${expenseReportID}`,
+            value: {
+                reportID: expenseReportID,
+                pendingFields: null,
+            },
+        });
+        if (expenseReport?.parentReportID && expenseReport?.parentReportActionID) {
+            onyxData.optimisticData?.push({
+                onyxMethod: Onyx.METHOD.MERGE,
+                key: `${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${expenseReport.parentReportID}`,
+                value: {
+                    [expenseReport.parentReportActionID]: {
+                        pendingAction: CONST.RED_BRICK_ROAD_PENDING_ACTION.DELETE,
+                    },
+                },
+            });
+            onyxData.successData?.push({
+                onyxMethod: Onyx.METHOD.MERGE,
+                key: `${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${expenseReport.parentReportID}`,
+                value: {
+                    [expenseReport.parentReportActionID]: {
+                        pendingAction: null,
+                    },
+                },
+            });
+            onyxData.failureData?.push({
+                onyxMethod: Onyx.METHOD.MERGE,
+                key: `${ONYXKEYS.COLLECTION.REPORT_ACTIONS}${expenseReport.parentReportID}`,
+                value: {
+                    [expenseReport.parentReportActionID]: {
+                        pendingAction: null,
+                    },
+                },
+            });
+        }
+    }
+
     if (!isCreationOfSplits && !isReverseSplitOperation) {
         const splitUpdateFailureDataKeys: Array<`${typeof ONYXKEYS.COLLECTION.TRANSACTION}${string}` | `${typeof ONYXKEYS.COLLECTION.SPLIT_TRANSACTION_DRAFT}${string}`> = [
             `${ONYXKEYS.COLLECTION.SPLIT_TRANSACTION_DRAFT}${originalTransactionID}`,
@@ -2028,7 +2012,7 @@ function updateSplitTransactions({
     if (isReverseSplitOperation) {
         const parameters = {
             ...splits.at(0),
-            comment: splits.at(0)?.comment?.comment,
+            comment: splits.at(0)?.comment,
             waypoints: splits.at(0)?.waypoints ? JSON.stringify(splits.at(0)?.waypoints) : undefined,
             copiedComments: splits.at(0)?.copiedComments ? JSON.stringify(splits.at(0)?.copiedComments) : undefined,
         } as RevertSplitTransactionParams;
@@ -2053,5 +2037,5 @@ function updateSplitTransactions({
     TransitionTracker.runAfterTransitions({callback: () => removeDraftSplitTransaction(originalTransactionID), waitForUpcomingTransition: true});
 }
 
-export {hasEditableSplitExpenseLeft, updateSplitTransactions};
+export {updateSplitTransactions};
 export type {UpdateSplitTransactionsParams};
