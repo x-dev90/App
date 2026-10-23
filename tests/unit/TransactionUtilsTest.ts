@@ -583,6 +583,53 @@ describe('TransactionUtils', () => {
             expect(TransactionUtils.isFailedScanAmountPlaceholder(updatedTransaction)).toBe(true);
         });
 
+        it('should confirm an unresolved Scan amount when the amount is explicitly edited', () => {
+            // Given an OPEN Scan whose zero amount is explicitly marked as unresolved
+            const transaction = generateTransaction({
+                amount: 0,
+                modifiedAmount: '',
+                isAmountSet: false,
+                iouRequestType: CONST.IOU.REQUEST_TYPE.SCAN,
+                receipt: {source: 'https://example.com/receipt.jpg', state: CONST.IOU.RECEIPT_STATE.OPEN},
+            });
+
+            // When the user explicitly enters zero as the amount
+            const updatedTransaction = TransactionUtils.getUpdatedTransaction({
+                transaction,
+                isFromExpenseReport: true,
+                transactionChanges: {amount: 0},
+                personalPolicyOutputCurrency: undefined,
+                getCurrencyDecimals: getCurrencyDecimalsLocal,
+                getCurrencySymbol: getCurrencySymbolLocal,
+            });
+
+            // Then only this unresolved Scan marker is cleared and zero is treated as intentional
+            expect(updatedTransaction.isAmountSet).toBe(true);
+            expect(TransactionUtils.isFailedScanAmountPlaceholder(updatedTransaction)).toBe(false);
+        });
+
+        it('should not add an amount marker to an unrelated Scan amount edit', () => {
+            // Given a Scan without the unresolved replacement marker
+            const transaction = generateTransaction({
+                amount: 100,
+                iouRequestType: CONST.IOU.REQUEST_TYPE.SCAN,
+                receipt: {source: 'https://example.com/receipt.jpg', state: CONST.IOU.RECEIPT_STATE.OPEN},
+            });
+
+            // When its amount is edited normally
+            const updatedTransaction = TransactionUtils.getUpdatedTransaction({
+                transaction,
+                isFromExpenseReport: true,
+                transactionChanges: {amount: 200},
+                personalPolicyOutputCurrency: undefined,
+                getCurrencyDecimals: getCurrencyDecimalsLocal,
+                getCurrencySymbol: getCurrencySymbolLocal,
+            });
+
+            // Then the replacement-only marker remains absent
+            expect(updatedTransaction.isAmountSet).toBeUndefined();
+        });
+
         it('should return updated category and tax when updating category with a category tax rules', () => {
             // Given a policy with tax expense rules associated with a category
             const category = 'Advertising';

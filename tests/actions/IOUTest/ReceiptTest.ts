@@ -209,6 +209,122 @@ describe('actions/IOU/Receipt', () => {
             expect(updatedSnapshot?.data?.[`${ONYXKEYS.COLLECTION.TRANSACTION}${transactionID}`]?.receipt?.state).toBe(CONST.IOU.RECEIPT_STATE.OPEN);
         });
 
+        it('should preserve an unresolved failed Scan amount when replacing its receipt', async () => {
+            // Given a failed Scan whose zero amount is still an unresolved placeholder
+            const transaction = await setupTransactionWithSnapshot(transactionID, {
+                amount: 0,
+                modifiedAmount: '',
+                iouRequestType: CONST.IOU.REQUEST_TYPE.SCAN,
+                receipt: {...OLD_RECEIPT, state: CONST.IOU.RECEIPT_STATE.SCAN_FAILED},
+            });
+
+            // When its receipt is replaced and the optimistic receipt state becomes OPEN
+            replaceReceipt({
+                transaction,
+                file: createFile(),
+                source,
+                transactionPolicy: undefined,
+                transactionPolicyTagList: undefined,
+                transactionReport: undefined,
+                isVendorMatchingBetaEnabled: false,
+                delegateAccountID: undefined,
+                currentUserPersonalDetails: {accountID: RORY_ACCOUNT_ID, email: RORY_EMAIL},
+                transactionThreadReport: undefined,
+            });
+            await waitForBatchedUpdates();
+
+            // Then both the live transaction and active Search snapshot retain the unresolved-amount marker after success
+            const updatedTransaction = await getUpdatedTransaction(transactionID);
+            expect(updatedTransaction).toEqual(expect.objectContaining({isAmountSet: false, receipt: expect.objectContaining({state: CONST.IOU.RECEIPT_STATE.OPEN})}));
+
+            const updatedSnapshot = await getSearchSnapshot(snapshotHash);
+            expect(updatedSnapshot?.data?.[`${ONYXKEYS.COLLECTION.TRANSACTION}${transactionID}`]).toEqual(expect.objectContaining({isAmountSet: false}));
+        });
+
+        it('should restore each original unresolved-amount marker when receipt replacement fails', async () => {
+            // Given a failed Scan whose live transaction has no marker while its Search snapshot has a marker
+            const writeSpy = mockApiWrite();
+            const transaction = await setupTransactionWithSnapshot(transactionID, {
+                amount: 0,
+                modifiedAmount: '',
+                iouRequestType: CONST.IOU.REQUEST_TYPE.SCAN,
+                receipt: {...OLD_RECEIPT, state: CONST.IOU.RECEIPT_STATE.SCAN_FAILED},
+            });
+            await Onyx.merge(`${ONYXKEYS.COLLECTION.SNAPSHOT}${snapshotHash}`, {
+                data: {
+                    [`${ONYXKEYS.COLLECTION.TRANSACTION}${transactionID}`]: {isAmountSet: true},
+                },
+            });
+            await waitForBatchedUpdates();
+
+            try {
+                // When its receipt replacement is prepared
+                replaceReceipt({
+                    transaction,
+                    file: createFile(),
+                    source,
+                    transactionPolicy: undefined,
+                    transactionPolicyTagList: undefined,
+                    transactionReport: undefined,
+                    isVendorMatchingBetaEnabled: false,
+                    delegateAccountID: undefined,
+                    currentUserPersonalDetails: {accountID: RORY_ACCOUNT_ID, email: RORY_EMAIL},
+                    transactionThreadReport: undefined,
+                });
+
+                // Then failure data removes the live marker and restores the snapshot's own original marker
+                const [, , onyxData] = getRequiredWriteCall(writeSpy.mock.calls, 0);
+                const transactionFailure = getRequiredOnyxUpdate(onyxData, 'failureData', `${ONYXKEYS.COLLECTION.TRANSACTION}${transactionID}`, Onyx.METHOD.MERGE, true);
+                expect(transactionFailure.value).toEqual(expect.objectContaining({isAmountSet: null}));
+
+                const snapshotFailure = getRequiredOnyxUpdate(onyxData, 'failureData', `${ONYXKEYS.COLLECTION.SNAPSHOT}${snapshotHash}`, Onyx.METHOD.MERGE, true);
+                expect(snapshotFailure.value).toEqual(
+                    expect.objectContaining({
+                        data: expect.objectContaining({
+                            [`${ONYXKEYS.COLLECTION.TRANSACTION}${transactionID}`]: expect.objectContaining({isAmountSet: true}),
+                        }),
+                    }),
+                );
+            } finally {
+                writeSpy.mockRestore();
+            }
+        });
+
+        it('should not mark a confirmed zero Scan as unresolved when replacing its receipt', async () => {
+            // Given an OPEN Scan whose zero amount was explicitly confirmed
+            const writeSpy = mockApiWrite();
+            const transaction = await setupTransactionWithSnapshot(transactionID, {
+                amount: 0,
+                modifiedAmount: '',
+                isAmountSet: true,
+                iouRequestType: CONST.IOU.REQUEST_TYPE.SCAN,
+                receipt: OLD_RECEIPT,
+            });
+
+            try {
+                // When its receipt is replaced
+                replaceReceipt({
+                    transaction,
+                    file: createFile(),
+                    source,
+                    transactionPolicy: undefined,
+                    transactionPolicyTagList: undefined,
+                    transactionReport: undefined,
+                    isVendorMatchingBetaEnabled: false,
+                    delegateAccountID: undefined,
+                    currentUserPersonalDetails: {accountID: RORY_ACCOUNT_ID, email: RORY_EMAIL},
+                    transactionThreadReport: undefined,
+                });
+
+                // Then replacement does not overwrite the confirmed amount marker
+                const [, , onyxData] = getRequiredWriteCall(writeSpy.mock.calls, 0);
+                const transactionOptimistic = getRequiredOnyxUpdate(onyxData, 'optimisticData', `${ONYXKEYS.COLLECTION.TRANSACTION}${transactionID}`, Onyx.METHOD.MERGE, true);
+                expect(transactionOptimistic.value).not.toHaveProperty('isAmountSet');
+            } finally {
+                writeSpy.mockRestore();
+            }
+        });
+
         it('should preserve receipt state when state is provided', async () => {
             // Given a transaction with a receipt in SCAN_READY state
             const transaction = await setupTransactionWithSnapshot(transactionID, {receipt: {source: 'test1', state: CONST.IOU.RECEIPT_STATE.SCAN_READY}});

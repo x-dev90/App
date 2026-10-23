@@ -13,7 +13,7 @@ import ReceiptStorage from '@libs/ReceiptStorage';
 import {buildOptimisticReceiptAddedAction, buildOptimisticReceiptRemovedAction, isInvoiceReport as isInvoiceReportReportUtils} from '@libs/ReportUtils';
 import {getCurrentSearchQueryJSON} from '@libs/SearchQueryUtils';
 import {logReceiptCaptured, mintAndStampReceiptTraceId} from '@libs/telemetry/ReceiptObservability';
-import {hasReceiptSource, hasUploadedReceipt} from '@libs/TransactionUtils';
+import {hasReceiptSource, hasUploadedReceipt, isFailedScanAmountPlaceholder} from '@libs/TransactionUtils';
 import ViolationsUtils from '@libs/Violations/ViolationsUtils';
 
 import type {IOURequestType, IOUType} from '@src/CONST';
@@ -31,6 +31,7 @@ import type {ValueOf} from 'type-fest';
 
 import Onyx from 'react-native-onyx';
 
+import {getAllSnapshots} from './index';
 import {getReceiptError} from './MoneyRequestBuilder';
 
 type DetachReceipt = {
@@ -254,6 +255,9 @@ function replaceReceipt({
     logReceiptCaptured({file, captureSource: 'replace', receiptTraceId});
 
     const oldReceipt = transaction?.receipt ?? {};
+    const shouldPreserveFailedScanAmountPlaceholder = isFailedScanAmountPlaceholder(transaction);
+    const failedScanAmountMarker = shouldPreserveFailedScanAmountPlaceholder ? {isAmountSet: false} : {};
+    const failedScanAmountMarkerRollback = shouldPreserveFailedScanAmountPlaceholder ? {isAmountSet: transaction.isAmountSet ?? null} : {};
     const receiptOptimistic = {
         source,
         localSource: null,
@@ -266,7 +270,7 @@ function replaceReceipt({
         // A crop or rotate keeps the same receipt, so its dates stay.
         ...(isSameReceipt ? {} : {hotelReservationStartDate: null, hotelReservationEndDate: null}),
     };
-    const newTransaction = transaction && {...transaction, receipt: receiptOptimistic};
+    const newTransaction = transaction && {...transaction, receipt: receiptOptimistic, ...failedScanAmountMarker};
 
     // The audit action IDs are chosen before the optimistic data is built. A retry passes the same IDs back
     // so it updates the failed actions. Nothing is posted for a crop or rotate, or when the thread does not exist yet.
@@ -305,6 +309,7 @@ function replaceReceipt({
             key: `${ONYXKEYS.COLLECTION.TRANSACTION}${transactionID}`,
             value: {
                 receipt: receiptOptimistic,
+                ...failedScanAmountMarker,
                 pendingFields: {
                     receipt: CONST.RED_BRICK_ROAD_PENDING_ACTION.UPDATE,
                 },
@@ -339,6 +344,7 @@ function replaceReceipt({
             key: `${ONYXKEYS.COLLECTION.TRANSACTION}${transactionID}`,
             value: {
                 receipt: !isEmptyObject(oldReceipt) ? oldReceipt : null,
+                ...failedScanAmountMarkerRollback,
                 errors: getReceiptError(receiptOptimistic, file.name, undefined, undefined, CONST.IOU.ACTION_PARAMS.REPLACE_RECEIPT, retryParams),
                 pendingFields: {
                     receipt: null,
@@ -368,10 +374,13 @@ function replaceReceipt({
         });
     }
     if (currentSearchQueryJSON?.hash) {
+        const snapshotTransaction = getAllSnapshots()?.[`${ONYXKEYS.COLLECTION.SNAPSHOT}${currentSearchQueryJSON.hash}`]?.data?.[`${ONYXKEYS.COLLECTION.TRANSACTION}${transactionID}`];
+        const snapshotFailedScanAmountMarkerRollback = shouldPreserveFailedScanAmountPlaceholder ? {isAmountSet: snapshotTransaction?.isAmountSet ?? null} : {};
         // Initializing as an empty typed object to allow dynamic key assignment resolves TypeScript type inference issue
         const optimisticSnapshotData: NullishDeep<SearchResultDataType> = {};
         optimisticSnapshotData[`${ONYXKEYS.COLLECTION.TRANSACTION}${transactionID}`] = {
             receipt: receiptOptimistic,
+            ...failedScanAmountMarker,
         };
         optimisticData.push({
             onyxMethod: Onyx.METHOD.MERGE,
@@ -385,6 +394,7 @@ function replaceReceipt({
         const failureSnapshotData: NullishDeep<SearchResultDataType> = {};
         failureSnapshotData[`${ONYXKEYS.COLLECTION.TRANSACTION}${transactionID}`] = {
             receipt: !isEmptyObject(oldReceipt) ? oldReceipt : null,
+            ...snapshotFailedScanAmountMarkerRollback,
         };
         failureData.push({
             onyxMethod: Onyx.METHOD.MERGE,
